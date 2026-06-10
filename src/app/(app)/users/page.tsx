@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/page-header';
 import { useAuth } from '@/contexts/auth-context';
 import api from '@/lib/api';
-import { User, Department } from '@/types';
+import { User, Department, UserRole } from '@/types';
 import { Plus, Search, MoreHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -212,7 +212,7 @@ function UserForm({ onSubmit, onCancel, departments }: { onSubmit: any; onCancel
         </div>
         <div>
           <label className="text-xs font-medium text-gray-700 block mb-1">Vai trò</label>
-          <select value={f.role} onChange={e => setF(p => ({ ...p, role: e.target.value }))}
+          <select value={f.role} onChange={e => setF(p => ({ ...p, role: e.target.value as UserRole }))}
             className="w-full h-9 px-2 text-sm border border-gray-200 rounded-md">
             <option value="NHAN_VIEN">Nhân viên</option>
             <option value="QUAN_LY">Quản lý</option>
@@ -263,7 +263,7 @@ function EditUserForm({ user, onSubmit, onCancel, departments }: { user: User; o
         </div>
         <div>
           <label className="text-xs font-medium text-gray-700 block mb-1">Vai trò</label>
-          <select value={f.role} onChange={e => setF(p => ({ ...p, role: e.target.value }))}
+          <select value={f.role} onChange={e => setF(p => ({ ...p, role: e.target.value as UserRole }))}
             className="w-full h-9 px-2 text-sm border border-gray-200 rounded-md">
             <option value="NHAN_VIEN">Nhân viên</option>
             <option value="QUAN_LY">Quản lý</option>
