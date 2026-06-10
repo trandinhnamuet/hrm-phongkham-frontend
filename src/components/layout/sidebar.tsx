@@ -19,7 +19,7 @@ const navItems = [
 
 const managerItems = [
   { href: '/attendance',   label: 'Chấm công',   icon: Clock,         adminOnly: false },
-  { href: '/tasks/manage', label: 'Quản lý CV',  icon: ClipboardList, adminOnly: false },
+  { href: '/tasks/manage', label: 'Công việc',  icon: ClipboardList, adminOnly: false },
   { href: '/users',        label: 'Nhân viên',   icon: Users,         adminOnly: false },
   { href: '/settings',     label: 'Cài đặt',     icon: Settings,      adminOnly: true  },
 ];

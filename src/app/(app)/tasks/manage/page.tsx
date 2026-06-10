@@ -5,29 +5,62 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/page-header';
 import { useAuth } from '@/contexts/auth-context';
 import api from '@/lib/api';
-import { Task, TaskStatus, TaskPriority, User, Department } from '@/types';
-import { Plus, ChevronDown } from 'lucide-react';
+import { Task, TaskStatus, TaskPriority, User, Department, TaskHistory } from '@/types';
+import { Plus, ChevronDown, History } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-const STATUS_COLS: { key: TaskStatus; label: string; color: string }[] = [
-  { key: 'TODO',        label: 'Cần làm',    color: 'bg-gray-100 text-gray-700' },
-  { key: 'IN_PROGRESS', label: 'Đang làm',   color: 'bg-blue-50 text-blue-700' },
-  { key: 'DONE',        label: 'Hoàn thành', color: 'bg-green-50 text-green-700' },
-  { key: 'CANCELLED',   label: 'Đã hủy',     color: 'bg-red-50 text-red-700' },
+/* ─── Constants ────────────────────────────────────────────── */
+const STATUS_COLS: { key: TaskStatus; label: string; color: string; canDropInto: boolean }[] = [
+  { key: 'TODO',        label: 'Cần làm',    color: 'bg-gray-100 text-gray-700',     canDropInto: true  },
+  { key: 'IN_PROGRESS', label: 'Đang làm',   color: 'bg-blue-50 text-blue-700',      canDropInto: true  },
+  { key: 'DONE',        label: 'Hoàn thành', color: 'bg-green-50 text-green-700',    canDropInto: true  },
+  { key: 'CANCELLED',   label: 'Đã hủy',     color: 'bg-red-50 text-red-700',        canDropInto: true  },
+  { key: 'QUA_HAN',     label: 'Quá hạn',    color: 'bg-orange-50 text-orange-700',  canDropInto: false },
 ];
 
+const STATUS_LABELS: Record<string, string> = {
+  TODO: 'Cần làm', IN_PROGRESS: 'Đang làm', DONE: 'Hoàn thành',
+  CANCELLED: 'Đã hủy', QUA_HAN: 'Quá hạn',
+};
+
 const PRIORITY_COLORS: Record<TaskPriority, string> = {
-  LOW:    'bg-gray-100 text-gray-600',
-  NORMAL: 'bg-blue-50 text-blue-700',
-  HIGH:   'bg-amber-50 text-amber-700',
-  URGENT: 'bg-red-50 text-red-700',
+  LOW: 'bg-gray-100 text-gray-600', NORMAL: 'bg-blue-50 text-blue-700',
+  HIGH: 'bg-amber-50 text-amber-700', URGENT: 'bg-red-50 text-red-700',
 };
 
 const PRIORITY_LABELS: Record<TaskPriority, string> = {
   LOW: 'Thấp', NORMAL: 'Bình thường', HIGH: 'Cao', URGENT: 'Khẩn',
 };
 
+const FIELD_LABELS: Record<string, string> = {
+  status: 'Trạng thái', title: 'Tiêu đề', description: 'Mô tả',
+  assigneeId: 'Người được giao', priority: 'Độ ưu tiên', dueDate: 'Hạn',
+};
+
+/* ─── Helpers ──────────────────────────────────────────────── */
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'vừa xong';
+  if (mins < 60) return `${mins} phút trước`;
+  const h = Math.floor(mins / 60);
+  if (h < 24) return `${h} giờ trước`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d} ngày trước`;
+  return new Date(dateStr).toLocaleDateString('vi-VN');
+}
+
+function formatHistoryValue(fieldName: string, value: string, users: User[]) {
+  if (!value) return '(trống)';
+  if (fieldName === 'status') return STATUS_LABELS[value] || value;
+  if (fieldName === 'priority') return PRIORITY_LABELS[value as TaskPriority] || value;
+  if (fieldName === 'assigneeId') return users.find(u => u.id === value)?.fullName || value.slice(0, 8) + '…';
+  if (fieldName === 'dueDate') { try { return new Date(value).toLocaleDateString('vi-VN'); } catch { return value; } }
+  return value.length > 60 ? value.slice(0, 60) + '…' : value;
+}
+
+/* ─── Page ──────────────────────────────────────────────────── */
 export default function ManageTasksPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -37,6 +70,7 @@ export default function ManageTasksPage() {
   const [filterAssignee, setFilterAssignee] = useState<string>('');
   const [filterDepartment, setFilterDepartment] = useState<string>('');
   const [newComment, setNewComment] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
 
   const dragRef = useRef<{ id: number; fromStatus: TaskStatus } | null>(null);
   const [dragOverCol, setDragOverCol] = useState<TaskStatus | null>(null);
@@ -72,12 +106,20 @@ export default function ManageTasksPage() {
     enabled: !!selectedTask,
   });
 
+  const { data: taskHistory = [] } = useQuery<TaskHistory[]>({
+    queryKey: ['task-history', selectedTask?.id],
+    queryFn: () => api.get(`/tasks/${selectedTask!.id}/history`).then(r => r.data),
+    enabled: !!selectedTask && showHistory,
+  });
+
   const updateTask = useMutation({
     mutationFn: ({ id, data }: { id: number; data: any }) => api.patch(`/tasks/${id}`, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['all-tasks'] });
       qc.invalidateQueries({ queryKey: ['task'] });
+      qc.invalidateQueries({ queryKey: ['task-history'] });
     },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Không thể thay đổi trạng thái'),
   });
 
   const deleteTask = useMutation({
@@ -132,13 +174,33 @@ export default function ManageTasksPage() {
 
   const handleDrop = (targetStatus: TaskStatus) => {
     const drag = dragRef.current;
-    if (drag && drag.fromStatus !== targetStatus) {
+    if (!drag) { setDragOverCol(null); return; }
+
+    // Can't drop into QUA_HAN manually
+    if (targetStatus === 'QUA_HAN') {
+      setDragOverCol(null); dragRef.current = null;
+      return;
+    }
+    // QUA_HAN tasks can only go to DONE
+    if (drag.fromStatus === 'QUA_HAN' && targetStatus !== 'DONE') {
+      toast.error('Công việc quá hạn chỉ có thể chuyển sang "Hoàn thành"');
+      setDragOverCol(null); dragRef.current = null;
+      return;
+    }
+
+    if (drag.fromStatus !== targetStatus) {
       updateTask.mutate({ id: drag.id, data: { status: targetStatus } });
       const col = STATUS_COLS.find(c => c.key === targetStatus);
       toast.success(`Đã chuyển sang "${col?.label}"`);
     }
     setDragOverCol(null);
     dragRef.current = null;
+  };
+
+  // Allowed status options for the detail dialog select
+  const allowedStatuses = (currentStatus: TaskStatus) => {
+    if (currentStatus === 'QUA_HAN') return STATUS_COLS.filter(s => s.key === 'QUA_HAN' || s.key === 'DONE');
+    return STATUS_COLS.filter(s => s.key !== 'QUA_HAN');
   };
 
   return (
@@ -149,52 +211,33 @@ export default function ManageTasksPage() {
         actions={
           <button onClick={() => setShowCreate(true)}
             className="flex items-center gap-1.5 h-8 px-3 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium rounded-md transition-colors">
-            <Plus size={14} />
-            Tạo mới
+            <Plus size={14} /> Tạo mới
           </button>
         }
       />
 
       {/* Filter bar */}
       <div className="px-6 py-3 bg-white border-b border-gray-100 flex flex-wrap gap-2 items-center">
-        {/* Status filters */}
         {['', ...STATUS_COLS.map(c => c.key)].map((s) => (
           <button key={s} onClick={() => setFilterStatus(s)}
-            className={`flex-shrink-0 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-              filterStatus === s ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500 hover:bg-gray-100'}`}>
+            className={`flex-shrink-0 px-3 py-1 text-xs font-medium rounded-md transition-colors ${filterStatus === s ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500 hover:bg-gray-100'}`}>
             {s === '' ? 'Tất cả' : STATUS_COLS.find(c => c.key === s)?.label}
           </button>
         ))}
-
-        {/* Divider */}
         <span className="w-px h-4 bg-gray-200 mx-1" />
-
-        {/* Department filter */}
         <div className="relative">
-          <select
-            value={filterDepartment}
-            onChange={e => { setFilterDepartment(e.target.value); setFilterAssignee(''); }}
-            className="h-7 pl-2 pr-7 text-xs border border-gray-200 rounded-md appearance-none bg-white text-gray-600 outline-none focus:border-indigo-400"
-          >
+          <select value={filterDepartment} onChange={e => { setFilterDepartment(e.target.value); setFilterAssignee(''); }}
+            className="h-7 pl-2 pr-7 text-xs border border-gray-200 rounded-md appearance-none bg-white text-gray-600 outline-none focus:border-indigo-400">
             <option value="">Tất cả bộ phận</option>
-            {departments.filter(d => d.isActive).map(d => (
-              <option key={d.id} value={String(d.id)}>{d.name}</option>
-            ))}
+            {departments.filter(d => d.isActive).map(d => <option key={d.id} value={String(d.id)}>{d.name}</option>)}
           </select>
           <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         </div>
-
-        {/* Employee filter */}
         <div className="relative">
-          <select
-            value={filterAssignee}
-            onChange={e => setFilterAssignee(e.target.value)}
-            className="h-7 pl-2 pr-7 text-xs border border-gray-200 rounded-md appearance-none bg-white text-gray-600 outline-none focus:border-indigo-400"
-          >
+          <select value={filterAssignee} onChange={e => setFilterAssignee(e.target.value)}
+            className="h-7 pl-2 pr-7 text-xs border border-gray-200 rounded-md appearance-none bg-white text-gray-600 outline-none focus:border-indigo-400">
             <option value="">Tất cả nhân viên</option>
-            {usersInDept.map((u: User) => (
-              <option key={u.id} value={u.id}>{u.fullName}</option>
-            ))}
+            {usersInDept.map((u: User) => <option key={u.id} value={u.id}>{u.fullName}</option>)}
           </select>
           <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         </div>
@@ -207,21 +250,19 @@ export default function ManageTasksPage() {
             <div className="w-6 h-6 border-2 border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
           </div>
         ) : (
-          <div className="flex gap-3 h-full" style={{ minWidth: '720px' }}>
+          <div className="flex gap-3 h-full" style={{ minWidth: '900px' }}>
             {grouped.map(col => (
               <div
                 key={col.key}
-                className={`flex-1 flex flex-col min-w-[200px] rounded-xl p-2 transition-colors duration-150 ${
-                  dragOverCol === col.key
+                className={`flex-1 flex flex-col min-w-[180px] rounded-xl p-2 transition-colors duration-150 ${
+                  dragOverCol === col.key && col.canDropInto
                     ? 'bg-indigo-50 ring-2 ring-inset ring-indigo-300'
-                    : 'bg-gray-50/60'
+                    : col.key === 'QUA_HAN' ? 'bg-orange-50/40' : 'bg-gray-50/60'
                 }`}
                 onDragOver={(e) => e.preventDefault()}
-                onDragEnter={() => setDragOverCol(col.key)}
+                onDragEnter={() => col.canDropInto && setDragOverCol(col.key)}
                 onDragLeave={(e) => {
-                  if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                    setDragOverCol(null);
-                  }
+                  if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null);
                 }}
                 onDrop={(e) => { e.preventDefault(); handleDrop(col.key); }}
               >
@@ -241,8 +282,12 @@ export default function ManageTasksPage() {
                         e.dataTransfer.setData('text/plain', String(task.id));
                       }}
                       onDragEnd={() => setDragOverCol(null)}
-                      onClick={() => setSelectedTask(task)}
-                      className="bg-white border border-gray-200 rounded-lg p-3.5 cursor-grab active:cursor-grabbing hover:border-indigo-300 hover:shadow-sm transition-all select-none"
+                      onClick={() => { setSelectedTask(task); setShowHistory(false); }}
+                      className={`bg-white border rounded-lg p-3.5 cursor-grab active:cursor-grabbing hover:shadow-sm transition-all select-none ${
+                        task.status === 'QUA_HAN'
+                          ? 'border-orange-200 hover:border-orange-300'
+                          : 'border-gray-200 hover:border-indigo-300'
+                      }`}
                     >
                       <p className="text-sm font-medium text-gray-900 mb-2">{task.title}</p>
                       <div className="flex items-center justify-between">
@@ -250,7 +295,7 @@ export default function ManageTasksPage() {
                           {PRIORITY_LABELS[task.priority]}
                         </span>
                         {task.dueDate && (
-                          <span className="text-[11px] text-gray-400">
+                          <span className={`text-[11px] ${task.status === 'QUA_HAN' ? 'text-orange-500 font-medium' : 'text-gray-400'}`}>
                             {new Date(task.dueDate).toLocaleDateString('vi-VN')}
                           </span>
                         )}
@@ -268,7 +313,7 @@ export default function ManageTasksPage() {
                     </div>
                   ))}
 
-                  {col.tasks.length === 0 && dragOverCol === col.key && (
+                  {col.tasks.length === 0 && dragOverCol === col.key && col.canDropInto && (
                     <div className="h-16 border-2 border-dashed border-indigo-300 rounded-lg flex items-center justify-center">
                       <span className="text-xs text-indigo-400">Thả vào đây</span>
                     </div>
@@ -286,15 +331,18 @@ export default function ManageTasksPage() {
           {taskDetail && (
             <>
               <DialogHeader>
-                <DialogTitle className="text-base">{taskDetail.title}</DialogTitle>
+                <DialogTitle className="text-base pr-6">{taskDetail.title}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 mt-2">
+                {/* Controls */}
                 <div className="flex flex-wrap gap-2">
                   <select
                     value={taskDetail.status}
                     onChange={(e) => updateTask.mutate({ id: taskDetail.id, data: { status: e.target.value } })}
                     className="h-7 px-2 text-xs border border-gray-200 rounded-md">
-                    {STATUS_COLS.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                    {allowedStatuses(taskDetail.status).map(s => (
+                      <option key={s.key} value={s.key}>{s.label}</option>
+                    ))}
                   </select>
                   <select
                     value={taskDetail.priority}
@@ -302,19 +350,21 @@ export default function ManageTasksPage() {
                     className="h-7 px-2 text-xs border border-gray-200 rounded-md">
                     {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
-                  {/* Reassign */}
                   <select
                     value={taskDetail.assignee?.id || ''}
                     onChange={(e) => updateTask.mutate({ id: taskDetail.id, data: { assigneeId: e.target.value } })}
                     className="h-7 px-2 text-xs border border-gray-200 rounded-md">
                     <option value="">-- Chưa giao --</option>
-                    {users.map((u: User) => (
-                      <option key={u.id} value={u.id}>{u.fullName}</option>
-                    ))}
+                    {users.map((u: User) => <option key={u.id} value={u.id}>{u.fullName}</option>)}
                   </select>
                   {taskDetail.dueDate && (
-                    <span className="flex items-center gap-1 text-xs text-gray-600 border border-gray-200 rounded-md px-2 h-7">
+                    <span className={`flex items-center gap-1 text-xs border rounded-md px-2 h-7 ${
+                      taskDetail.status === 'QUA_HAN'
+                        ? 'text-orange-600 border-orange-200 bg-orange-50'
+                        : 'text-gray-600 border-gray-200'
+                    }`}>
                       📅 {new Date(taskDetail.dueDate).toLocaleDateString('vi-VN')}
+                      {taskDetail.status === 'QUA_HAN' && ' · Quá hạn'}
                     </span>
                   )}
                 </div>
@@ -359,8 +409,65 @@ export default function ManageTasksPage() {
                   </div>
                 </div>
 
+                {/* History toggle */}
+                <div className="border-t border-gray-100 pt-3">
+                  <button
+                    onClick={() => setShowHistory(s => !s)}
+                    className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 mb-3"
+                  >
+                    <History size={13} />
+                    {showHistory ? 'Ẩn lịch sử' : 'Xem lịch sử thay đổi'}
+                  </button>
+
+                  {showHistory && (
+                    <div className="space-y-2">
+                      {taskHistory.length === 0 ? (
+                        <p className="text-xs text-gray-400 py-2">Chưa có lịch sử thay đổi</p>
+                      ) : taskHistory.map(h => (
+                        <div key={h.id} className="flex gap-2.5 text-xs">
+                          <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <span className="text-[10px] text-gray-500 font-semibold">
+                              {h.changedBy?.fullName?.charAt(0) || 'H'}
+                            </span>
+                          </div>
+                          <div className="flex-1">
+                            <span className="font-medium text-gray-700">{h.changedBy?.fullName || 'Hệ thống'}</span>
+                            {' '}
+                            {h.changeType === 'CREATED' && (
+                              <span className="text-gray-500">đã tạo công việc này</span>
+                            )}
+                            {h.changeType === 'STATUS_CHANGE' && (
+                              <span className="text-gray-500">
+                                đổi <span className="font-medium">{FIELD_LABELS[h.fieldName!] || h.fieldName}</span>
+                                {': '}
+                                <span className="text-gray-400">{formatHistoryValue(h.fieldName!, h.oldValue!, users)}</span>
+                                {' → '}
+                                <span className="text-gray-700">{formatHistoryValue(h.fieldName!, h.newValue!, users)}</span>
+                              </span>
+                            )}
+                            {h.changeType === 'FIELD_UPDATE' && (
+                              <span className="text-gray-500">
+                                cập nhật <span className="font-medium">{FIELD_LABELS[h.fieldName!] || h.fieldName}</span>
+                                {h.fieldName !== 'description' && (
+                                  <>
+                                    {': '}
+                                    <span className="text-gray-400">{formatHistoryValue(h.fieldName!, h.oldValue!, users)}</span>
+                                    {' → '}
+                                    <span className="text-gray-700">{formatHistoryValue(h.fieldName!, h.newValue!, users)}</span>
+                                  </>
+                                )}
+                              </span>
+                            )}
+                            <span className="text-gray-400 ml-1">· {timeAgo(h.createdAt)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 {/* Delete */}
-                <div className="pt-2 border-t border-gray-100 flex justify-end">
+                <div className="border-t border-gray-100 flex justify-end pt-1">
                   <button
                     onClick={() => deleteTask.mutate(taskDetail.id)}
                     disabled={deleteTask.isPending}

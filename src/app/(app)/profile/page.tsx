@@ -5,8 +5,9 @@ import { useMutation } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/page-header';
 import { useAuth } from '@/contexts/auth-context';
 import api from '@/lib/api';
-import { User, Camera, KeyRound, Save, CheckCircle } from 'lucide-react';
+import { User, Camera, KeyRound, Save, CheckCircle, Sun, Moon } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTheme } from '@/contexts/theme-context';
 
 const ROLE_LABEL: Record<string, string> = {
   GIAM_DOC: 'Giám đốc',
@@ -26,6 +27,7 @@ export default function ProfilePage() {
         <AvatarSection user={user} onRefresh={refreshUser} />
         <InfoSection user={user} onRefresh={refreshUser} />
         <PasswordSection userId={user.id} />
+        <ThemeSection />
       </div>
     </div>
   );
@@ -272,6 +274,38 @@ function PasswordSection({ userId }: { userId: string }) {
             {save.isPending ? 'Đang lưu...' : 'Đổi mật khẩu'}
           </button>
         </div>
+      </div>
+    </section>
+  );
+}
+
+function ThemeSection() {
+  const { theme, toggleTheme } = useTheme();
+  const isDark = theme === 'dark';
+
+  return (
+    <section className="bg-white border border-gray-200 rounded-xl overflow-hidden dark:bg-gray-800 dark:border-gray-700">
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+        {isDark ? <Moon size={15} className="text-indigo-400" /> : <Sun size={15} className="text-indigo-500" />}
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Giao diện</h2>
+      </div>
+      <div className="p-5 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Chế độ hiển thị</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            {isDark ? 'Đang dùng chế độ tối' : 'Đang dùng chế độ sáng'}
+          </p>
+        </div>
+        <button
+          onClick={toggleTheme}
+          className={`relative inline-flex h-7 w-13 items-center rounded-full transition-colors duration-200 focus-visible:outline-none ${isDark ? 'bg-indigo-500' : 'bg-gray-300'}`}
+          role="switch"
+          aria-checked={isDark}
+        >
+          <span className={`inline-flex h-5 w-5 transform items-center justify-center rounded-full bg-white shadow transition-transform duration-200 ${isDark ? 'translate-x-7' : 'translate-x-1'}`}>
+            {isDark ? <Moon size={10} className="text-indigo-500" /> : <Sun size={10} className="text-amber-500" />}
+          </span>
+        </button>
       </div>
     </section>
   );

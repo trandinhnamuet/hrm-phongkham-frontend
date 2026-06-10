@@ -26,7 +26,7 @@ export interface User {
 }
 
 export type TaskPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
-export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'DONE' | 'CANCELLED';
+export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'DONE' | 'CANCELLED' | 'QUA_HAN';
 
 export interface Task {
   id: number;
@@ -42,6 +42,17 @@ export interface Task {
   attachments?: TaskAttachment[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface TaskHistory {
+  id: number;
+  taskId: number;
+  changedBy?: User;
+  changeType: 'CREATED' | 'STATUS_CHANGE' | 'FIELD_UPDATE';
+  fieldName?: string;
+  oldValue?: string;
+  newValue?: string;
+  createdAt: string;
 }
 
 export interface TaskComment {
