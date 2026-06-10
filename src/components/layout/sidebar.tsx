@@ -11,16 +11,17 @@ import { useSidebar } from '@/contexts/sidebar-context';
 import { cn } from '@/lib/utils';
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard',   icon: LayoutDashboard },
-  { href: '/tasks',     label: 'Công việc',   icon: CheckSquare },
-  { href: '/attendance', label: 'Chấm công',  icon: Clock },
-  { href: '/leave',     label: 'Nghỉ tuần',   icon: CalendarOff },
+  { href: '/dashboard',  label: 'Dashboard',  icon: LayoutDashboard, managerHidden: false },
+  { href: '/tasks',      label: 'Công việc',  icon: CheckSquare,     managerHidden: false },
+  { href: '/attendance', label: 'Chấm công',  icon: Clock,           managerHidden: true  },
+  { href: '/leave',      label: 'Nghỉ tuần',  icon: CalendarOff,     managerHidden: false },
 ];
 
 const managerItems = [
+  { href: '/attendance',   label: 'Chấm công',   icon: Clock,         adminOnly: false },
   { href: '/tasks/manage', label: 'Quản lý CV',  icon: ClipboardList, adminOnly: false },
-  { href: '/users',        label: 'Nhân viên',   icon: Users,          adminOnly: false },
-  { href: '/settings',     label: 'Cài đặt',     icon: Settings,       adminOnly: true  },
+  { href: '/users',        label: 'Nhân viên',   icon: Users,         adminOnly: false },
+  { href: '/settings',     label: 'Cài đặt',     icon: Settings,      adminOnly: true  },
 ];
 
 export function Sidebar() {
@@ -68,7 +69,8 @@ export function Sidebar() {
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-4 px-2">
           <div className="space-y-0.5">
-            {navItems.map(({ href, label, icon: Icon }) => {
+            {navItems.map(({ href, label, icon: Icon, managerHidden }) => {
+              if (managerHidden && isManager) return null;
               const active = pathname === href || (href !== '/tasks' && pathname.startsWith(href));
               return (
                 <Link key={href} href={href} onClick={close}

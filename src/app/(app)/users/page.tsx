@@ -179,20 +179,13 @@ export default function UsersPage() {
 }
 
 function UserForm({ onSubmit, onCancel, departments }: { onSubmit: any; onCancel: any; departments: Department[] }) {
-  const [f, setF] = useState({ employeeCode: '', fullName: '', email: '', password: '', phone: '', role: 'NHAN_VIEN', positionTitle: '', departmentId: '' });
+  const [f, setF] = useState({ fullName: '', email: '', password: '', phone: '', role: 'NHAN_VIEN', positionTitle: '', departmentId: '' });
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSubmit({ ...f, departmentId: f.departmentId ? Number(f.departmentId) : undefined }); }} className="space-y-3 mt-2">
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-xs font-medium text-gray-700 block mb-1">Mã NV *</label>
-          <input required value={f.employeeCode} onChange={e => setF(p => ({ ...p, employeeCode: e.target.value }))}
-            className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md" />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-gray-700 block mb-1">Họ tên *</label>
-          <input required value={f.fullName} onChange={e => setF(p => ({ ...p, fullName: e.target.value }))}
-            className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md" />
-        </div>
+      <div>
+        <label className="text-xs font-medium text-gray-700 block mb-1">Họ tên *</label>
+        <input required value={f.fullName} onChange={e => setF(p => ({ ...p, fullName: e.target.value }))}
+          className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md" />
       </div>
       <div>
         <label className="text-xs font-medium text-gray-700 block mb-1">Email *</label>
