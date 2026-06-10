@@ -35,6 +35,7 @@ export default function AttendancePage() {
   const [viewMonth, setViewMonth] = useState(now.getMonth() + 1);
   const [gpsLoading, setGpsLoading] = useState<'in' | 'out' | null>(null);
   const [showAdjust, setShowAdjust] = useState(false);
+  const [adjustLog, setAdjustLog] = useState<AttendanceLog | null>(null);
   const [adjustForm, setAdjustForm] = useState({ logId: 0, field: 'CHECK_IN', requestedValue: '', reason: '' });
   const [searchName, setSearchName] = useState('');
 
@@ -291,7 +292,11 @@ export default function AttendancePage() {
                   </td>
                   {isDirector && (
                     <td className="px-4 py-3">
-                      <button onClick={() => { setAdjustForm(f => ({ ...f, logId: log.id })); setShowAdjust(true); }}
+                      <button onClick={() => {
+                          setAdjustLog(log);
+                          setAdjustForm({ logId: log.id, field: 'CHECK_IN', requestedValue: toDatetimeLocal(log.checkInAt), reason: '' });
+                          setShowAdjust(true);
+                        }}
                         className="text-xs text-indigo-600 hover:underline">Điều chỉnh</button>
                     </td>
                   )}
@@ -310,11 +315,23 @@ export default function AttendancePage() {
       {showAdjust && isDirector && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-5 w-full max-w-sm shadow-xl">
-            <p className="text-base font-semibold mb-4">Yêu cầu điều chỉnh công</p>
+            <p className="text-base font-semibold mb-1">Yêu cầu điều chỉnh công</p>
+            {adjustLog && (
+              <p className="text-xs text-gray-500 mb-4">
+                {(adjustLog as any).user?.fullName && <><span className="font-medium">{(adjustLog as any).user.fullName}</span> · </>}
+                {adjustLog.workDate}
+              </p>
+            )}
             <div className="space-y-3">
               <div>
                 <label className="text-xs font-medium text-gray-700 block mb-1">Trường cần sửa</label>
-                <select value={adjustForm.field} onChange={e => setAdjustForm(f => ({ ...f, field: e.target.value }))}
+                <select value={adjustForm.field} onChange={e => {
+                    const f = e.target.value;
+                    const val = f === 'CHECK_IN' ? toDatetimeLocal(adjustLog?.checkInAt)
+                              : f === 'CHECK_OUT' ? toDatetimeLocal(adjustLog?.checkOutAt)
+                              : adjustLog?.status ?? '';
+                    setAdjustForm(prev => ({ ...prev, field: f, requestedValue: val }));
+                  }}
                   className="w-full h-9 px-2 text-sm border border-gray-200 rounded-md">
                   <option value="CHECK_IN">Giờ vào</option>
                   <option value="CHECK_OUT">Giờ ra</option>
@@ -335,7 +352,7 @@ export default function AttendancePage() {
               </div>
             </div>
             <div className="flex gap-2 mt-4 justify-end">
-              <button onClick={() => setShowAdjust(false)}
+              <button onClick={() => { setShowAdjust(false); setAdjustLog(null); }}
                 className="h-8 px-4 text-sm border border-gray-200 rounded-md hover:bg-gray-50">Hủy</button>
               <button onClick={() => submitAdj.mutate(adjustForm)}
                 className="h-8 px-4 text-sm bg-indigo-500 text-white rounded-md hover:bg-indigo-600">Gửi</button>
@@ -345,6 +362,12 @@ export default function AttendancePage() {
       )}
     </div>
   );
+}
+
+function toDatetimeLocal(utcStr?: string) {
+  if (!utcStr) return '';
+  const vn = new Date(new Date(utcStr).getTime() + 7 * 60 * 60 * 1000);
+  return vn.toISOString().slice(0, 16);
 }
 
 function getGPS(): Promise<{ lat: number; lng: number }> {
