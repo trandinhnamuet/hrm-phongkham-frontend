@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/page-header';
 import { useAuth } from '@/contexts/auth-context';
 import api from '@/lib/api';
 import { Task, TaskStatus, TaskPriority, User, Department, TaskHistory } from '@/types';
-import { Plus, ChevronDown, History, Calendar, User as UserIcon, Flag, Tag } from 'lucide-react';
+import { Plus, ChevronDown, History, Calendar, User as UserIcon, Flag, Tag, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -74,11 +74,25 @@ export default function ManageTasksPage() {
   const [filterDepartment, setFilterDepartment] = useState<string>('');
   const [newComment, setNewComment] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+  const [editForm, setEditForm] = useState<{ status: string; priority: string; assigneeId: string; dueDate: string } | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const dragRef = useRef<{ id: number; fromStatus: TaskStatus } | null>(null);
   const [dragOverCol, setDragOverCol] = useState<TaskStatus | null>(null);
 
   const isManager = user?.role === 'GIAM_DOC' || user?.role === 'QUAN_LY';
+
+  useEffect(() => {
+    if (taskDetail) {
+      setEditForm({
+        status: taskDetail.status,
+        priority: taskDetail.priority,
+        assigneeId: taskDetail.assignee?.id || '',
+        dueDate: toDateInput(taskDetail.dueDate),
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskDetail?.id]);
 
   const { data: tasks = [], isLoading } = useQuery<Task[]>({
     queryKey: ['all-tasks', filterStatus, filterAssignee],
@@ -121,6 +135,7 @@ export default function ManageTasksPage() {
       qc.invalidateQueries({ queryKey: ['all-tasks'] });
       qc.invalidateQueries({ queryKey: ['task'] });
       qc.invalidateQueries({ queryKey: ['task-history'] });
+      toast.success('Đã lưu thay đổi');
     },
     onError: (e: any) => toast.error(e.response?.data?.message || 'Không thể thay đổi'),
   });
@@ -130,6 +145,7 @@ export default function ManageTasksPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['all-tasks'] });
       setSelectedTask(null);
+      setShowDeleteConfirm(false);
       toast.success('Đã xóa công việc');
     },
     onError: (e: any) => toast.error(e.response?.data?.message || 'Lỗi xóa công việc'),
@@ -253,7 +269,7 @@ export default function ManageTasksPage() {
                     <div key={task.id} draggable
                       onDragStart={e => { dragRef.current = { id: task.id, fromStatus: col.key }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(task.id)); }}
                       onDragEnd={() => setDragOverCol(null)}
-                      onClick={() => { setSelectedTask(task); setShowHistory(false); }}
+                      onClick={() => { setSelectedTask(task); setShowHistory(false); setShowDeleteConfirm(false); setEditForm(null); }}
                       className={`bg-white border rounded-lg p-3.5 cursor-grab active:cursor-grabbing hover:shadow-sm transition-all select-none ${
                         task.status === 'QUA_HAN' ? 'border-orange-200 hover:border-orange-300' : 'border-gray-200 hover:border-indigo-300'
                       }`}
@@ -292,7 +308,7 @@ export default function ManageTasksPage() {
       </div>
 
       {/* Task Detail Dialog */}
-      <Dialog open={!!selectedTask} onOpenChange={o => !o && setSelectedTask(null)}>
+      <Dialog open={!!selectedTask} onOpenChange={o => { if (!o) { setSelectedTask(null); setShowDeleteConfirm(false); } }}>
         <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
           {taskDetail && (
             <>
@@ -310,14 +326,15 @@ export default function ManageTasksPage() {
               <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
 
                 {/* Metadata grid */}
+                {editForm && (
                 <div className="grid grid-cols-2 gap-x-6 gap-y-4 bg-gray-50 rounded-xl p-4">
                   {/* Trạng thái */}
                   <div>
                     <p className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1.5">
                       <Tag size={10} /> Trạng thái
                     </p>
-                    <select value={taskDetail.status}
-                      onChange={e => updateTask.mutate({ id: taskDetail.id, data: { status: e.target.value } })}
+                    <select value={editForm.status}
+                      onChange={e => setEditForm(f => f ? { ...f, status: e.target.value } : f)}
                       className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white outline-none focus:border-indigo-400">
                       {allowedStatuses(taskDetail.status).map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
                     </select>
@@ -328,8 +345,8 @@ export default function ManageTasksPage() {
                     <p className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1.5">
                       <Flag size={10} /> Độ ưu tiên
                     </p>
-                    <select value={taskDetail.priority}
-                      onChange={e => updateTask.mutate({ id: taskDetail.id, data: { priority: e.target.value } })}
+                    <select value={editForm.priority}
+                      onChange={e => setEditForm(f => f ? { ...f, priority: e.target.value } : f)}
                       className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white outline-none focus:border-indigo-400">
                       {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                     </select>
@@ -340,8 +357,8 @@ export default function ManageTasksPage() {
                     <p className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1.5">
                       <UserIcon size={10} /> Giao cho
                     </p>
-                    <select value={taskDetail.assignee?.id || ''}
-                      onChange={e => updateTask.mutate({ id: taskDetail.id, data: { assigneeId: e.target.value } })}
+                    <select value={editForm.assigneeId}
+                      onChange={e => setEditForm(f => f ? { ...f, assigneeId: e.target.value } : f)}
                       className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white outline-none focus:border-indigo-400">
                       <option value="">-- Chưa giao --</option>
                       {users.map((u: User) => <option key={u.id} value={u.id}>{u.fullName}</option>)}
@@ -355,16 +372,15 @@ export default function ManageTasksPage() {
                     </p>
                     <input type="date"
                       min={TODAY}
-                      value={toDateInput(taskDetail.dueDate)}
-                      onChange={e => {
-                        if (e.target.value) updateTask.mutate({ id: taskDetail.id, data: { dueDate: e.target.value } });
-                      }}
+                      value={editForm.dueDate}
+                      onChange={e => setEditForm(f => f ? { ...f, dueDate: e.target.value } : f)}
                       className={`w-full h-8 px-2 text-sm border rounded-md bg-white outline-none focus:border-indigo-400 ${
                         taskDetail.status === 'QUA_HAN' ? 'border-orange-300 text-orange-600' : 'border-gray-200'
                       }`}
                     />
                   </div>
                 </div>
+                )}
 
                 {/* Description */}
                 {taskDetail.description && (
@@ -461,10 +477,51 @@ export default function ManageTasksPage() {
                 <p className="text-[11px] text-gray-400">
                   Tạo bởi {taskDetail.createdBy?.fullName} · {new Date(taskDetail.createdAt).toLocaleDateString('vi-VN')}
                 </p>
-                <button onClick={() => deleteTask.mutate(taskDetail.id)} disabled={deleteTask.isPending}
-                  className="h-7 px-3 text-xs text-red-600 border border-red-200 rounded-md hover:bg-red-50 disabled:opacity-50">
-                  {deleteTask.isPending ? 'Đang xóa...' : 'Xóa công việc'}
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* Save button — only visible when there are unsaved changes */}
+                  {editForm && (
+                    editForm.status !== taskDetail.status ||
+                    editForm.priority !== taskDetail.priority ||
+                    editForm.assigneeId !== (taskDetail.assignee?.id || '') ||
+                    editForm.dueDate !== toDateInput(taskDetail.dueDate)
+                  ) && (
+                    <button
+                      onClick={() => {
+                        if (!editForm) return;
+                        const data: Record<string, any> = {};
+                        if (editForm.status !== taskDetail.status) data.status = editForm.status;
+                        if (editForm.priority !== taskDetail.priority) data.priority = editForm.priority;
+                        if (editForm.assigneeId !== (taskDetail.assignee?.id || '')) data.assigneeId = editForm.assigneeId;
+                        if (editForm.dueDate !== toDateInput(taskDetail.dueDate)) data.dueDate = editForm.dueDate;
+                        updateTask.mutate({ id: taskDetail.id, data });
+                      }}
+                      disabled={updateTask.isPending}
+                      className="flex items-center gap-1.5 h-7 px-3 text-xs text-white bg-indigo-500 rounded-md hover:bg-indigo-600 disabled:opacity-50">
+                      <Save size={11} />
+                      {updateTask.isPending ? 'Đang lưu...' : 'Lưu thay đổi'}
+                    </button>
+                  )}
+
+                  {/* Delete with confirmation */}
+                  {showDeleteConfirm ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-gray-500">Xác nhận xóa?</span>
+                      <button onClick={() => deleteTask.mutate(taskDetail.id)} disabled={deleteTask.isPending}
+                        className="h-7 px-3 text-xs text-white bg-red-500 rounded-md hover:bg-red-600 disabled:opacity-50">
+                        {deleteTask.isPending ? '...' : 'Xóa'}
+                      </button>
+                      <button onClick={() => setShowDeleteConfirm(false)}
+                        className="h-7 px-3 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">
+                        Hủy
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setShowDeleteConfirm(true)}
+                      className="h-7 px-3 text-xs text-red-600 border border-red-200 rounded-md hover:bg-red-50">
+                      Xóa công việc
+                    </button>
+                  )}
+                </div>
               </div>
             </>
           )}
