@@ -82,18 +82,6 @@ export default function ManageTasksPage() {
 
   const isManager = user?.role === 'GIAM_DOC' || user?.role === 'QUAN_LY';
 
-  useEffect(() => {
-    if (taskDetail) {
-      setEditForm({
-        status: taskDetail.status,
-        priority: taskDetail.priority,
-        assigneeId: taskDetail.assignee?.id || '',
-        dueDate: toDateInput(taskDetail.dueDate),
-      });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [taskDetail?.id]);
-
   const { data: tasks = [], isLoading } = useQuery<Task[]>({
     queryKey: ['all-tasks', filterStatus, filterAssignee],
     queryFn: () => api.get('/tasks', {
@@ -128,6 +116,18 @@ export default function ManageTasksPage() {
     queryFn: () => api.get(`/tasks/${selectedTask!.id}/history`).then(r => r.data),
     enabled: !!selectedTask && showHistory,
   });
+
+  useEffect(() => {
+    if (taskDetail) {
+      setEditForm({
+        status: taskDetail.status,
+        priority: taskDetail.priority,
+        assigneeId: taskDetail.assignee?.id || '',
+        dueDate: toDateInput(taskDetail.dueDate),
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskDetail?.id]);
 
   const updateTask = useMutation({
     mutationFn: ({ id, data }: { id: number; data: any }) => api.patch(`/tasks/${id}`, data),
