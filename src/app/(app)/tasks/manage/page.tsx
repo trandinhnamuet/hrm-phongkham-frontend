@@ -6,17 +6,19 @@ import { PageHeader } from '@/components/layout/page-header';
 import { useAuth } from '@/contexts/auth-context';
 import api from '@/lib/api';
 import { Task, TaskStatus, TaskPriority, User, Department, TaskHistory } from '@/types';
-import { Plus, ChevronDown, History } from 'lucide-react';
+import { Plus, ChevronDown, History, Calendar, User as UserIcon, Flag, Tag } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-/* ─── Constants ────────────────────────────────────────────── */
+/* ─── Constants ──────────────────────────────────────────── */
+const TODAY = new Date().toISOString().split('T')[0];
+
 const STATUS_COLS: { key: TaskStatus; label: string; color: string; canDropInto: boolean }[] = [
-  { key: 'TODO',        label: 'Cần làm',    color: 'bg-gray-100 text-gray-700',     canDropInto: true  },
-  { key: 'IN_PROGRESS', label: 'Đang làm',   color: 'bg-blue-50 text-blue-700',      canDropInto: true  },
-  { key: 'DONE',        label: 'Hoàn thành', color: 'bg-green-50 text-green-700',    canDropInto: true  },
-  { key: 'CANCELLED',   label: 'Đã hủy',     color: 'bg-red-50 text-red-700',        canDropInto: true  },
-  { key: 'QUA_HAN',     label: 'Quá hạn',    color: 'bg-orange-50 text-orange-700',  canDropInto: false },
+  { key: 'TODO',        label: 'Cần làm',    color: 'bg-gray-100 text-gray-700',    canDropInto: true  },
+  { key: 'IN_PROGRESS', label: 'Đang làm',   color: 'bg-blue-50 text-blue-700',     canDropInto: true  },
+  { key: 'DONE',        label: 'Hoàn thành', color: 'bg-green-50 text-green-700',   canDropInto: true  },
+  { key: 'CANCELLED',   label: 'Đã hủy',     color: 'bg-red-50 text-red-700',       canDropInto: true  },
+  { key: 'QUA_HAN',     label: 'Quá hạn',    color: 'bg-orange-50 text-orange-700', canDropInto: false },
 ];
 
 const STATUS_LABELS: Record<string, string> = {
@@ -25,20 +27,22 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const PRIORITY_COLORS: Record<TaskPriority, string> = {
-  LOW: 'bg-gray-100 text-gray-600', NORMAL: 'bg-blue-50 text-blue-700',
-  HIGH: 'bg-amber-50 text-amber-700', URGENT: 'bg-red-50 text-red-700',
+  LOW:    'bg-gray-100 text-gray-600',
+  NORMAL: 'bg-blue-50 text-blue-700',
+  HIGH:   'bg-amber-50 text-amber-700',
+  URGENT: 'bg-red-50 text-red-700',
 };
-
 const PRIORITY_LABELS: Record<TaskPriority, string> = {
   LOW: 'Thấp', NORMAL: 'Bình thường', HIGH: 'Cao', URGENT: 'Khẩn',
 };
-
 const FIELD_LABELS: Record<string, string> = {
   status: 'Trạng thái', title: 'Tiêu đề', description: 'Mô tả',
   assigneeId: 'Người được giao', priority: 'Độ ưu tiên', dueDate: 'Hạn',
 };
 
-/* ─── Helpers ──────────────────────────────────────────────── */
+/* ─── Helpers ────────────────────────────────────────────── */
+function toDateInput(v?: string) { return v ? v.split('T')[0] : ''; }
+
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -47,20 +51,19 @@ function timeAgo(dateStr: string) {
   const h = Math.floor(mins / 60);
   if (h < 24) return `${h} giờ trước`;
   const d = Math.floor(h / 24);
-  if (d < 30) return `${d} ngày trước`;
-  return new Date(dateStr).toLocaleDateString('vi-VN');
+  return d < 30 ? `${d} ngày trước` : new Date(dateStr).toLocaleDateString('vi-VN');
 }
 
-function formatHistoryValue(fieldName: string, value: string, users: User[]) {
-  if (!value) return '(trống)';
-  if (fieldName === 'status') return STATUS_LABELS[value] || value;
-  if (fieldName === 'priority') return PRIORITY_LABELS[value as TaskPriority] || value;
-  if (fieldName === 'assigneeId') return users.find(u => u.id === value)?.fullName || value.slice(0, 8) + '…';
-  if (fieldName === 'dueDate') { try { return new Date(value).toLocaleDateString('vi-VN'); } catch { return value; } }
-  return value.length > 60 ? value.slice(0, 60) + '…' : value;
+function fmtHistVal(field: string, val: string, users: User[]) {
+  if (!val) return '(trống)';
+  if (field === 'status') return STATUS_LABELS[val] || val;
+  if (field === 'priority') return PRIORITY_LABELS[val as TaskPriority] || val;
+  if (field === 'assigneeId') return users.find(u => u.id === val)?.fullName || val.slice(0, 8) + '…';
+  if (field === 'dueDate') { try { return new Date(val).toLocaleDateString('vi-VN'); } catch { return val; } }
+  return val.length > 60 ? val.slice(0, 60) + '…' : val;
 }
 
-/* ─── Page ──────────────────────────────────────────────────── */
+/* ─── Page ───────────────────────────────────────────────── */
 export default function ManageTasksPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -119,7 +122,7 @@ export default function ManageTasksPage() {
       qc.invalidateQueries({ queryKey: ['task'] });
       qc.invalidateQueries({ queryKey: ['task-history'] });
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Không thể thay đổi trạng thái'),
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Không thể thay đổi'),
   });
 
   const deleteTask = useMutation({
@@ -152,56 +155,34 @@ export default function ManageTasksPage() {
   });
 
   if (!isManager) {
-    return (
-      <div className="flex items-center justify-center h-full text-sm text-gray-400">
-        Không có quyền truy cập
-      </div>
-    );
+    return <div className="flex items-center justify-center h-full text-sm text-gray-400">Không có quyền truy cập</div>;
   }
 
-  const usersInDept = filterDepartment
-    ? users.filter(u => String(u.departmentId) === filterDepartment)
-    : users;
-
+  const usersInDept = filterDepartment ? users.filter(u => String(u.departmentId) === filterDepartment) : users;
   const filteredTasks = filterDepartment
     ? tasks.filter(t => !t.assignee || usersInDept.some(u => u.id === t.assignee!.id))
     : tasks;
-
-  const grouped = STATUS_COLS.map(col => ({
-    ...col,
-    tasks: filteredTasks.filter(t => t.status === col.key),
-  }));
+  const grouped = STATUS_COLS.map(col => ({ ...col, tasks: filteredTasks.filter(t => t.status === col.key) }));
 
   const handleDrop = (targetStatus: TaskStatus) => {
     const drag = dragRef.current;
     if (!drag) { setDragOverCol(null); return; }
-
-    // Can't drop into QUA_HAN manually
-    if (targetStatus === 'QUA_HAN') {
-      setDragOverCol(null); dragRef.current = null;
-      return;
-    }
-    // QUA_HAN tasks can only go to DONE
+    if (targetStatus === 'QUA_HAN') { setDragOverCol(null); dragRef.current = null; return; }
     if (drag.fromStatus === 'QUA_HAN' && targetStatus !== 'DONE') {
       toast.error('Công việc quá hạn chỉ có thể chuyển sang "Hoàn thành"');
-      setDragOverCol(null); dragRef.current = null;
-      return;
+      setDragOverCol(null); dragRef.current = null; return;
     }
-
     if (drag.fromStatus !== targetStatus) {
       updateTask.mutate({ id: drag.id, data: { status: targetStatus } });
-      const col = STATUS_COLS.find(c => c.key === targetStatus);
-      toast.success(`Đã chuyển sang "${col?.label}"`);
+      toast.success(`Đã chuyển sang "${STATUS_COLS.find(c => c.key === targetStatus)?.label}"`);
     }
-    setDragOverCol(null);
-    dragRef.current = null;
+    setDragOverCol(null); dragRef.current = null;
   };
 
-  // Allowed status options for the detail dialog select
-  const allowedStatuses = (currentStatus: TaskStatus) => {
-    if (currentStatus === 'QUA_HAN') return STATUS_COLS.filter(s => s.key === 'QUA_HAN' || s.key === 'DONE');
-    return STATUS_COLS.filter(s => s.key !== 'QUA_HAN');
-  };
+  const allowedStatuses = (cur: TaskStatus) =>
+    cur === 'QUA_HAN'
+      ? STATUS_COLS.filter(s => s.key === 'QUA_HAN' || s.key === 'DONE')
+      : STATUS_COLS.filter(s => s.key !== 'QUA_HAN');
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -218,7 +199,7 @@ export default function ManageTasksPage() {
 
       {/* Filter bar */}
       <div className="px-6 py-3 bg-white border-b border-gray-100 flex flex-wrap gap-2 items-center">
-        {['', ...STATUS_COLS.map(c => c.key)].map((s) => (
+        {['', ...STATUS_COLS.map(c => c.key)].map(s => (
           <button key={s} onClick={() => setFilterStatus(s)}
             className={`flex-shrink-0 px-3 py-1 text-xs font-medium rounded-md transition-colors ${filterStatus === s ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500 hover:bg-gray-100'}`}>
             {s === '' ? 'Tất cả' : STATUS_COLS.find(c => c.key === s)?.label}
@@ -252,44 +233,32 @@ export default function ManageTasksPage() {
         ) : (
           <div className="flex gap-3 h-full" style={{ minWidth: '900px' }}>
             {grouped.map(col => (
-              <div
-                key={col.key}
-                className={`flex-1 flex flex-col min-w-[180px] rounded-xl p-2 transition-colors duration-150 ${
+              <div key={col.key}
+                className={`flex-1 flex flex-col min-w-[175px] rounded-xl p-2 transition-colors duration-150 ${
                   dragOverCol === col.key && col.canDropInto
                     ? 'bg-indigo-50 ring-2 ring-inset ring-indigo-300'
                     : col.key === 'QUA_HAN' ? 'bg-orange-50/40' : 'bg-gray-50/60'
                 }`}
-                onDragOver={(e) => e.preventDefault()}
+                onDragOver={e => e.preventDefault()}
                 onDragEnter={() => col.canDropInto && setDragOverCol(col.key)}
-                onDragLeave={(e) => {
-                  if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null);
-                }}
-                onDrop={(e) => { e.preventDefault(); handleDrop(col.key); }}
+                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null); }}
+                onDrop={e => { e.preventDefault(); handleDrop(col.key); }}
               >
                 <div className="flex items-center gap-2 mb-2 px-1">
                   <span className={`text-xs font-medium px-2 py-0.5 rounded ${col.color}`}>{col.label}</span>
                   <span className="text-xs text-gray-400">{col.tasks.length}</span>
                 </div>
-
                 <div className="flex-1 space-y-2 overflow-y-auto">
                   {col.tasks.map(task => (
-                    <div
-                      key={task.id}
-                      draggable
-                      onDragStart={(e) => {
-                        dragRef.current = { id: task.id, fromStatus: col.key };
-                        e.dataTransfer.effectAllowed = 'move';
-                        e.dataTransfer.setData('text/plain', String(task.id));
-                      }}
+                    <div key={task.id} draggable
+                      onDragStart={e => { dragRef.current = { id: task.id, fromStatus: col.key }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(task.id)); }}
                       onDragEnd={() => setDragOverCol(null)}
                       onClick={() => { setSelectedTask(task); setShowHistory(false); }}
                       className={`bg-white border rounded-lg p-3.5 cursor-grab active:cursor-grabbing hover:shadow-sm transition-all select-none ${
-                        task.status === 'QUA_HAN'
-                          ? 'border-orange-200 hover:border-orange-300'
-                          : 'border-gray-200 hover:border-indigo-300'
+                        task.status === 'QUA_HAN' ? 'border-orange-200 hover:border-orange-300' : 'border-gray-200 hover:border-indigo-300'
                       }`}
                     >
-                      <p className="text-sm font-medium text-gray-900 mb-2">{task.title}</p>
+                      <p className="text-sm font-medium text-gray-900 mb-2 leading-snug">{task.title}</p>
                       <div className="flex items-center justify-between">
                         <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded ${PRIORITY_COLORS[task.priority]}`}>
                           {PRIORITY_LABELS[task.priority]}
@@ -303,16 +272,13 @@ export default function ManageTasksPage() {
                       {task.assignee && (
                         <div className="flex items-center gap-1.5 mt-2">
                           <div className="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                            <span className="text-[10px] text-indigo-600 font-semibold">
-                              {task.assignee.fullName?.charAt(0)}
-                            </span>
+                            <span className="text-[10px] text-indigo-600 font-semibold">{task.assignee.fullName?.charAt(0)}</span>
                           </div>
-                          <span className="text-[11px] text-gray-500">{task.assignee.fullName}</span>
+                          <span className="text-[11px] text-gray-500 truncate">{task.assignee.fullName}</span>
                         </div>
                       )}
                     </div>
                   ))}
-
                   {col.tasks.length === 0 && dragOverCol === col.key && col.canDropInto && (
                     <div className="h-16 border-2 border-dashed border-indigo-300 rounded-lg flex items-center justify-center">
                       <span className="text-xs text-indigo-400">Thả vào đây</span>
@@ -326,176 +292,193 @@ export default function ManageTasksPage() {
       </div>
 
       {/* Task Detail Dialog */}
-      <Dialog open={!!selectedTask} onOpenChange={(o) => !o && setSelectedTask(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <Dialog open={!!selectedTask} onOpenChange={o => !o && setSelectedTask(null)}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
           {taskDetail && (
             <>
-              <DialogHeader>
-                <DialogTitle className="text-base pr-6">{taskDetail.title}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 mt-2">
-                {/* Controls */}
-                <div className="flex flex-wrap gap-2">
-                  <select
-                    value={taskDetail.status}
-                    onChange={(e) => updateTask.mutate({ id: taskDetail.id, data: { status: e.target.value } })}
-                    className="h-7 px-2 text-xs border border-gray-200 rounded-md">
-                    {allowedStatuses(taskDetail.status).map(s => (
-                      <option key={s.key} value={s.key}>{s.label}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={taskDetail.priority}
-                    onChange={(e) => updateTask.mutate({ id: taskDetail.id, data: { priority: e.target.value } })}
-                    className="h-7 px-2 text-xs border border-gray-200 rounded-md">
-                    {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                  <select
-                    value={taskDetail.assignee?.id || ''}
-                    onChange={(e) => updateTask.mutate({ id: taskDetail.id, data: { assigneeId: e.target.value } })}
-                    className="h-7 px-2 text-xs border border-gray-200 rounded-md">
-                    <option value="">-- Chưa giao --</option>
-                    {users.map((u: User) => <option key={u.id} value={u.id}>{u.fullName}</option>)}
-                  </select>
-                  {taskDetail.dueDate && (
-                    <span className={`flex items-center gap-1 text-xs border rounded-md px-2 h-7 ${
-                      taskDetail.status === 'QUA_HAN'
-                        ? 'text-orange-600 border-orange-200 bg-orange-50'
-                        : 'text-gray-600 border-gray-200'
-                    }`}>
-                      📅 {new Date(taskDetail.dueDate).toLocaleDateString('vi-VN')}
-                      {taskDetail.status === 'QUA_HAN' && ' · Quá hạn'}
-                    </span>
-                  )}
+              {/* Header */}
+              <div className="px-6 pt-6 pb-4 border-b border-gray-100">
+                <div className="flex items-start gap-3 pr-6">
+                  <span className={`mt-0.5 flex-shrink-0 text-[11px] font-medium px-2 py-0.5 rounded ${STATUS_COLS.find(s => s.key === taskDetail.status)?.color}`}>
+                    {STATUS_LABELS[taskDetail.status]}
+                  </span>
+                  <h2 className="text-base font-semibold text-gray-900 leading-snug">{taskDetail.title}</h2>
+                </div>
+              </div>
+
+              {/* Scrollable body */}
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+
+                {/* Metadata grid */}
+                <div className="grid grid-cols-2 gap-x-6 gap-y-4 bg-gray-50 rounded-xl p-4">
+                  {/* Trạng thái */}
+                  <div>
+                    <p className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1.5">
+                      <Tag size={10} /> Trạng thái
+                    </p>
+                    <select value={taskDetail.status}
+                      onChange={e => updateTask.mutate({ id: taskDetail.id, data: { status: e.target.value } })}
+                      className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white outline-none focus:border-indigo-400">
+                      {allowedStatuses(taskDetail.status).map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Độ ưu tiên */}
+                  <div>
+                    <p className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1.5">
+                      <Flag size={10} /> Độ ưu tiên
+                    </p>
+                    <select value={taskDetail.priority}
+                      onChange={e => updateTask.mutate({ id: taskDetail.id, data: { priority: e.target.value } })}
+                      className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white outline-none focus:border-indigo-400">
+                      {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Giao cho */}
+                  <div>
+                    <p className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1.5">
+                      <UserIcon size={10} /> Giao cho
+                    </p>
+                    <select value={taskDetail.assignee?.id || ''}
+                      onChange={e => updateTask.mutate({ id: taskDetail.id, data: { assigneeId: e.target.value } })}
+                      className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white outline-none focus:border-indigo-400">
+                      <option value="">-- Chưa giao --</option>
+                      {users.map((u: User) => <option key={u.id} value={u.id}>{u.fullName}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Hạn */}
+                  <div>
+                    <p className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1.5">
+                      <Calendar size={10} /> Hạn hoàn thành
+                    </p>
+                    <input type="date"
+                      min={TODAY}
+                      value={toDateInput(taskDetail.dueDate)}
+                      onChange={e => {
+                        if (e.target.value) updateTask.mutate({ id: taskDetail.id, data: { dueDate: e.target.value } });
+                      }}
+                      className={`w-full h-8 px-2 text-sm border rounded-md bg-white outline-none focus:border-indigo-400 ${
+                        taskDetail.status === 'QUA_HAN' ? 'border-orange-300 text-orange-600' : 'border-gray-200'
+                      }`}
+                    />
+                  </div>
                 </div>
 
+                {/* Description */}
                 {taskDetail.description && (
-                  <p className="text-sm text-gray-700 bg-gray-50 rounded-md p-3">{taskDetail.description}</p>
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 mb-2">Mô tả</p>
+                    <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3 leading-relaxed whitespace-pre-wrap">{taskDetail.description}</p>
+                  </div>
                 )}
 
                 {/* Comments */}
                 <div>
-                  <p className="text-xs font-medium text-gray-500 mb-2">Bình luận ({taskDetail.comments?.length || 0})</p>
-                  <div className="space-y-2 mb-3">
-                    {taskDetail.comments?.map((c: any) => (
-                      <div key={c.id} className="flex gap-2">
-                        <div className="w-6 h-6 rounded-full bg-indigo-100 flex-shrink-0 flex items-center justify-center">
-                          <span className="text-[10px] text-indigo-600">{c.user?.fullName?.charAt(0)}</span>
-                        </div>
-                        <div className="flex-1 bg-gray-50 rounded-md px-3 py-2">
-                          <p className="text-xs font-medium text-gray-700">{c.user?.fullName}</p>
-                          <p className="text-sm text-gray-800">{c.body}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                      placeholder="Thêm bình luận..."
-                      className="flex-1 h-8 px-3 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && newComment.trim()) {
-                          addComment.mutate({ taskId: taskDetail.id, body: newComment.trim() });
-                        }
-                      }}
-                    />
-                    <button
-                      onClick={() => newComment.trim() && addComment.mutate({ taskId: taskDetail.id, body: newComment.trim() })}
-                      className="h-8 px-3 bg-indigo-500 text-white text-xs rounded-md hover:bg-indigo-600">
-                      Gửi
-                    </button>
-                  </div>
-                </div>
-
-                {/* History toggle */}
-                <div className="border-t border-gray-100 pt-3">
-                  <button
-                    onClick={() => setShowHistory(s => !s)}
-                    className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 mb-3"
-                  >
-                    <History size={13} />
-                    {showHistory ? 'Ẩn lịch sử' : 'Xem lịch sử thay đổi'}
-                  </button>
-
-                  {showHistory && (
-                    <div className="space-y-2">
-                      {taskHistory.length === 0 ? (
-                        <p className="text-xs text-gray-400 py-2">Chưa có lịch sử thay đổi</p>
-                      ) : taskHistory.map(h => (
-                        <div key={h.id} className="flex gap-2.5 text-xs">
-                          <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <span className="text-[10px] text-gray-500 font-semibold">
-                              {h.changedBy?.fullName?.charAt(0) || 'H'}
-                            </span>
+                  <p className="text-xs font-medium text-gray-500 mb-3">Bình luận ({taskDetail.comments?.length || 0})</p>
+                  {(taskDetail.comments?.length ?? 0) > 0 && (
+                    <div className="space-y-2 mb-3">
+                      {taskDetail.comments?.map((c: any) => (
+                        <div key={c.id} className="flex gap-2.5">
+                          <div className="w-7 h-7 rounded-full bg-indigo-100 flex-shrink-0 flex items-center justify-center">
+                            <span className="text-[11px] text-indigo-600 font-semibold">{c.user?.fullName?.charAt(0)}</span>
                           </div>
-                          <div className="flex-1">
-                            <span className="font-medium text-gray-700">{h.changedBy?.fullName || 'Hệ thống'}</span>
-                            {' '}
-                            {h.changeType === 'CREATED' && (
-                              <span className="text-gray-500">đã tạo công việc này</span>
-                            )}
-                            {h.changeType === 'STATUS_CHANGE' && (
-                              <span className="text-gray-500">
-                                đổi <span className="font-medium">{FIELD_LABELS[h.fieldName!] || h.fieldName}</span>
-                                {': '}
-                                <span className="text-gray-400">{formatHistoryValue(h.fieldName!, h.oldValue!, users)}</span>
-                                {' → '}
-                                <span className="text-gray-700">{formatHistoryValue(h.fieldName!, h.newValue!, users)}</span>
-                              </span>
-                            )}
-                            {h.changeType === 'FIELD_UPDATE' && (
-                              <span className="text-gray-500">
-                                cập nhật <span className="font-medium">{FIELD_LABELS[h.fieldName!] || h.fieldName}</span>
-                                {h.fieldName !== 'description' && (
-                                  <>
-                                    {': '}
-                                    <span className="text-gray-400">{formatHistoryValue(h.fieldName!, h.oldValue!, users)}</span>
-                                    {' → '}
-                                    <span className="text-gray-700">{formatHistoryValue(h.fieldName!, h.newValue!, users)}</span>
-                                  </>
-                                )}
-                              </span>
-                            )}
-                            <span className="text-gray-400 ml-1">· {timeAgo(h.createdAt)}</span>
+                          <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2.5">
+                            <p className="text-xs font-medium text-gray-700 mb-0.5">{c.user?.fullName}</p>
+                            <p className="text-sm text-gray-800 leading-relaxed">{c.body}</p>
                           </div>
                         </div>
                       ))}
                     </div>
                   )}
+                  <div className="flex gap-2">
+                    <input value={newComment} onChange={e => setNewComment(e.target.value)}
+                      placeholder="Thêm bình luận..."
+                      className="flex-1 h-9 px-3 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400"
+                      onKeyDown={e => { if (e.key === 'Enter' && newComment.trim()) addComment.mutate({ taskId: taskDetail.id, body: newComment.trim() }); }}
+                    />
+                    <button onClick={() => newComment.trim() && addComment.mutate({ taskId: taskDetail.id, body: newComment.trim() })}
+                      className="h-9 px-4 bg-indigo-500 text-white text-sm rounded-md hover:bg-indigo-600">
+                      Gửi
+                    </button>
+                  </div>
                 </div>
 
-                {/* Delete */}
-                <div className="border-t border-gray-100 flex justify-end pt-1">
-                  <button
-                    onClick={() => deleteTask.mutate(taskDetail.id)}
-                    disabled={deleteTask.isPending}
-                    className="h-8 px-3 text-xs text-red-600 border border-red-200 rounded-md hover:bg-red-50 disabled:opacity-50"
-                  >
-                    {deleteTask.isPending ? 'Đang xóa...' : 'Xóa công việc'}
+                {/* History */}
+                <div className="border-t border-gray-100 pt-4">
+                  <button onClick={() => setShowHistory(s => !s)}
+                    className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors mb-3">
+                    <History size={12} />
+                    {showHistory ? 'Ẩn lịch sử' : 'Xem lịch sử thay đổi'}
                   </button>
+                  {showHistory && (
+                    <div className="space-y-3">
+                      {taskHistory.length === 0
+                        ? <p className="text-xs text-gray-400">Chưa có lịch sử</p>
+                        : taskHistory.map(h => (
+                          <div key={h.id} className="flex gap-2.5 text-xs">
+                            <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <span className="text-[10px] text-gray-500 font-semibold">{h.changedBy?.fullName?.charAt(0) || 'H'}</span>
+                            </div>
+                            <div className="flex-1 leading-relaxed">
+                              <span className="font-medium text-gray-700">{h.changedBy?.fullName || 'Hệ thống'}</span>
+                              {' '}
+                              {h.changeType === 'CREATED' && <span className="text-gray-500">đã tạo công việc này</span>}
+                              {h.changeType === 'STATUS_CHANGE' && (
+                                <span className="text-gray-500">
+                                  đổi <span className="font-medium">{FIELD_LABELS[h.fieldName!]}</span>:{' '}
+                                  <span className="text-gray-400 line-through">{fmtHistVal(h.fieldName!, h.oldValue!, users)}</span>
+                                  {' → '}
+                                  <span className="text-gray-800">{fmtHistVal(h.fieldName!, h.newValue!, users)}</span>
+                                </span>
+                              )}
+                              {h.changeType === 'FIELD_UPDATE' && (
+                                <span className="text-gray-500">
+                                  cập nhật <span className="font-medium">{FIELD_LABELS[h.fieldName!] || h.fieldName}</span>
+                                  {h.fieldName !== 'description' && (
+                                    <>
+                                      {': '}
+                                      <span className="text-gray-400 line-through">{fmtHistVal(h.fieldName!, h.oldValue!, users)}</span>
+                                      {' → '}
+                                      <span className="text-gray-800">{fmtHistVal(h.fieldName!, h.newValue!, users)}</span>
+                                    </>
+                                  )}
+                                </span>
+                              )}
+                              <span className="text-gray-400 ml-1.5">· {timeAgo(h.createdAt)}</span>
+                            </div>
+                          </div>
+                        ))
+                      }
+                    </div>
+                  )}
                 </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-3 border-t border-gray-100 flex justify-between items-center bg-gray-50/50">
+                <p className="text-[11px] text-gray-400">
+                  Tạo bởi {taskDetail.createdBy?.fullName} · {new Date(taskDetail.createdAt).toLocaleDateString('vi-VN')}
+                </p>
+                <button onClick={() => deleteTask.mutate(taskDetail.id)} disabled={deleteTask.isPending}
+                  className="h-7 px-3 text-xs text-red-600 border border-red-200 rounded-md hover:bg-red-50 disabled:opacity-50">
+                  {deleteTask.isPending ? 'Đang xóa...' : 'Xóa công việc'}
+                </button>
               </div>
             </>
           )}
         </DialogContent>
       </Dialog>
 
-      <CreateTaskDialog
-        open={showCreate}
-        onClose={() => setShowCreate(false)}
-        users={users}
-        onSubmit={(data: any) => createTask.mutate(data)}
-      />
+      <CreateTaskDialog open={showCreate} onClose={() => setShowCreate(false)} users={users} onSubmit={(d: any) => createTask.mutate(d)} />
     </div>
   );
 }
 
+/* ─── Create dialog ──────────────────────────────────────── */
 function CreateTaskDialog({ open, onClose, users, onSubmit }: any) {
-  const [form, setForm] = useState({
-    title: '', description: '', assigneeId: '', priority: 'NORMAL', dueDate: '',
-  });
+  const [form, setForm] = useState({ title: '', description: '', assigneeId: '', priority: 'NORMAL', dueDate: '' });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -503,7 +486,7 @@ function CreateTaskDialog({ open, onClose, users, onSubmit }: any) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={o => !o && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader><DialogTitle>Tạo công việc mới</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
@@ -537,20 +520,16 @@ function CreateTaskDialog({ open, onClose, users, onSubmit }: any) {
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-700 block mb-1">Hạn</label>
-              <input type="date" value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
+              <label className="text-xs font-medium text-gray-700 block mb-1">Hạn hoàn thành</label>
+              <input type="date" min={TODAY} value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
                 className="w-full h-9 px-2 text-sm border border-gray-200 rounded-md" />
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose}
-              className="h-8 px-4 text-sm text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">
-              Hủy
-            </button>
+              className="h-8 px-4 text-sm text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Hủy</button>
             <button type="submit"
-              className="h-8 px-4 text-sm text-white bg-indigo-500 rounded-md hover:bg-indigo-600">
-              Tạo
-            </button>
+              className="h-8 px-4 text-sm text-white bg-indigo-500 rounded-md hover:bg-indigo-600">Tạo</button>
           </div>
         </form>
       </DialogContent>

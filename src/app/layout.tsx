@@ -12,11 +12,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="vi" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');var d=window.matchMedia('(prefers-color-scheme:dark)').matches;if(t==='dark'||(t===null&&d)){document.documentElement.classList.add('dark')}}catch(e){}})()` }} />
-      </head>
-      <body className="h-full bg-[#F9F9F9] dark:bg-gray-950 transition-colors duration-200">
+    <html lang="vi" className={`${inter.variable} h-full antialiased`}>
+      <body className="h-full bg-[#F9F9F9]">
         <Providers>{children}</Providers>
       </body>
     </html>
