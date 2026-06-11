@@ -135,6 +135,7 @@ export default function ManageTasksPage() {
       qc.invalidateQueries({ queryKey: ['all-tasks'] });
       qc.invalidateQueries({ queryKey: ['task'] });
       qc.invalidateQueries({ queryKey: ['task-history'] });
+      setSelectedTask(null);
       toast.success('Đã lưu thay đổi');
     },
     onError: (e: any) => toast.error(e.response?.data?.message || 'Không thể thay đổi'),
