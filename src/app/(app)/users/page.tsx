@@ -21,6 +21,9 @@ export default function UsersPage() {
   const { user: me } = useAuth();
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ACTIVE' | 'RESIGNED' | ''>('ACTIVE');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [deptFilter, setDeptFilter] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
 
@@ -34,11 +37,16 @@ export default function UsersPage() {
     queryFn: () => api.get('/departments').then(r => r.data),
   });
 
-  const filtered = users.filter(u =>
-    u.fullName.toLowerCase().includes(search.toLowerCase()) ||
-    u.email.toLowerCase().includes(search.toLowerCase()) ||
-    u.employeeCode.includes(search)
-  );
+  const filtered = users.filter(u => {
+    if (statusFilter && u.status !== statusFilter) return false;
+    if (roleFilter && u.role !== roleFilter) return false;
+    if (deptFilter && String(u.departmentId) !== deptFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (!u.fullName.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q) && !u.employeeCode.includes(q)) return false;
+    }
+    return true;
+  });
 
   const createUser = useMutation({
     mutationFn: (data: any) => api.post('/users', data),
@@ -60,7 +68,7 @@ export default function UsersPage() {
     <div className="flex flex-col h-full overflow-auto">
       <PageHeader
         title="Nhân viên"
-        description={`${users.length} nhân viên`}
+        description={`${filtered.length}${filtered.length < users.length ? `/${users.length}` : ''} nhân viên`}
         actions={
           me?.role === 'GIAM_DOC' && (
             <button onClick={() => setShowCreate(true)}
@@ -72,15 +80,50 @@ export default function UsersPage() {
       />
 
       <div className="flex-1 p-6">
-        {/* Search */}
-        <div className="relative mb-4 max-w-xs">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Tìm nhân viên..."
-            className="w-full h-9 pl-8 pr-3 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400"
-          />
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Tìm nhân viên..."
+              className="h-9 pl-8 pr-3 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400 w-52"
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value as any)}
+            className="h-9 px-2 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400 text-gray-700">
+            <option value="ACTIVE">Đang làm</option>
+            <option value="RESIGNED">Đã nghỉ</option>
+            <option value="">Tất cả trạng thái</option>
+          </select>
+          <select
+            value={roleFilter}
+            onChange={e => setRoleFilter(e.target.value)}
+            className="h-9 px-2 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400 text-gray-700">
+            <option value="">Tất cả vai trò</option>
+            <option value="GIAM_DOC">Giám đốc</option>
+            <option value="QUAN_LY">Quản lý</option>
+            <option value="NHAN_VIEN">Nhân viên</option>
+          </select>
+          <select
+            value={deptFilter}
+            onChange={e => setDeptFilter(e.target.value)}
+            className="h-9 px-2 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400 text-gray-700">
+            <option value="">Tất cả bộ phận</option>
+            {departments.filter(d => d.isActive).map(d => (
+              <option key={d.id} value={String(d.id)}>{d.name}</option>
+            ))}
+          </select>
+          {(statusFilter !== 'ACTIVE' || roleFilter || deptFilter || search) && (
+            <button
+              onClick={() => { setStatusFilter('ACTIVE'); setRoleFilter(''); setDeptFilter(''); setSearch(''); }}
+              className="h-9 px-3 text-sm text-gray-500 hover:text-gray-700 border border-gray-200 rounded-md hover:bg-gray-50">
+              Đặt lại
+            </button>
+          )}
         </div>
 
         {/* Table */}
