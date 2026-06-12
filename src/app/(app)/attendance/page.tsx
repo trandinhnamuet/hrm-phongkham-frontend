@@ -286,9 +286,6 @@ export default function AttendancePage() {
                     <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_MAP[log.status]?.cls || 'bg-gray-100 text-gray-600'}`}>
                       {STATUS_MAP[log.status]?.label || log.status}
                     </span>
-                    {log.lateMinutes > 0 && (
-                      <span className="ml-1 text-xs text-amber-600">+{log.lateMinutes}m trễ</span>
-                    )}
                   </td>
                   {isDirector && (
                     <td className="px-4 py-3">
