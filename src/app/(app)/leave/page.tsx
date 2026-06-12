@@ -237,7 +237,7 @@ function CreateLeaveForm({ types, onSubmit, onCancel }: { types: LeaveType[]; on
         <select required value={form.leaveTypeId} onChange={e => setForm(f => ({ ...f, leaveTypeId: e.target.value }))}
           className="w-full h-9 px-2 text-sm border border-gray-200 rounded-md">
           <option value="">-- Chọn loại --</option>
-          {types.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          {types.filter(t => t.isActive !== false).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
       </div>
       <div className="grid grid-cols-2 gap-3">

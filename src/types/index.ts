@@ -130,6 +130,7 @@ export interface LeaveType {
   maxDays?: number;
   requiresDoc: boolean;
   isPaid: boolean;
+  isActive?: boolean;
 }
 
 export interface LeaveBalance {

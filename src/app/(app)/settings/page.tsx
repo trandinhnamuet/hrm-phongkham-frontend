@@ -319,9 +319,9 @@ function LeaveTypesPanel({ qc }: { qc: any }) {
       )}
 
       <div className="divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">
-        {leaveTypes.length === 0 ? (
+        {leaveTypes.filter(lt => lt.isActive !== false).length === 0 ? (
           <div className="text-center py-8 text-sm text-gray-400">Chưa có loại nghỉ nào</div>
-        ) : leaveTypes.map(lt => (
+        ) : leaveTypes.filter(lt => lt.isActive !== false).map(lt => (
           <div key={lt.id} className="px-3 py-3">
             {editLt?.id === lt.id ? (
               <div className="space-y-2">
