@@ -356,7 +356,6 @@ function LeaveTypesPanel({ qc }: { qc: any }) {
                     {lt.deductsBalance && <span className="text-[11px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded">Trừ phép</span>}
                     {lt.requiresDoc && <span className="text-[11px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">Cần giấy tờ</span>}
                     {lt.maxDays && <span className="text-[11px] text-gray-400">Tối đa {lt.maxDays} ngày</span>}
-                    {!lt.isActive && <span className="text-[11px] text-red-400">Vô hiệu</span>}
                   </div>
                 </div>
                 <div className="flex gap-1 flex-shrink-0">
