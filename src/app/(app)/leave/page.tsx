@@ -230,7 +230,7 @@ function CreateLeaveForm({ types, onSubmit, onCancel }: { types: LeaveType[]; on
   })();
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSubmit({ ...form, leaveTypeId: +form.leaveTypeId, totalDays }); }}
+    <form onSubmit={(e) => { e.preventDefault(); onSubmit({ ...form, leaveTypeId: +form.leaveTypeId }); }}
       className="space-y-4 mt-2">
       <div>
         <label className="text-xs font-medium text-gray-700 block mb-1">Loại nghỉ tuần *</label>
