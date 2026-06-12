@@ -240,9 +240,32 @@ function UserForm({ onSubmit, onCancel, departments }: { onSubmit: any; onCancel
 }
 
 function EditUserForm({ user, onSubmit, onCancel, departments }: { user: User; onSubmit: any; onCancel: any; departments: Department[] }) {
-  const [f, setF] = useState({ fullName: user.fullName, phone: user.phone || '', role: user.role, positionTitle: user.positionTitle || '', departmentId: user.departmentId ? String(user.departmentId) : '' });
+  const initManagedIds = (user.managedDepartments ?? []).map(d => d.id);
+  const [f, setF] = useState({
+    fullName: user.fullName,
+    phone: user.phone || '',
+    role: user.role,
+    positionTitle: user.positionTitle || '',
+    departmentId: user.departmentId ? String(user.departmentId) : '',
+  });
+  const [managedIds, setManagedIds] = useState<number[]>(initManagedIds);
+
+  const isQl = f.role === 'QUAN_LY';
+
+  const toggleDept = (id: number) =>
+    setManagedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit({
+      ...f,
+      departmentId: f.departmentId ? Number(f.departmentId) : null,
+      managedDepartmentIds: isQl ? managedIds : undefined,
+    });
+  };
+
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSubmit({ ...f, departmentId: f.departmentId ? Number(f.departmentId) : null }); }} className="space-y-3 mt-2">
+    <form onSubmit={handleSubmit} className="space-y-3 mt-2">
       <div>
         <label className="text-xs font-medium text-gray-700 block mb-1">Họ tên</label>
         <input value={f.fullName} onChange={e => setF(p => ({ ...p, fullName: e.target.value }))}
@@ -271,7 +294,7 @@ function EditUserForm({ user, onSubmit, onCancel, departments }: { user: User; o
             className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md" />
         </div>
         <div>
-          <label className="text-xs font-medium text-gray-700 block mb-1">Bộ phận</label>
+          <label className="text-xs font-medium text-gray-700 block mb-1">Bộ phận (của nhân viên)</label>
           <select value={f.departmentId} onChange={e => setF(p => ({ ...p, departmentId: e.target.value }))}
             className="w-full h-9 px-2 text-sm border border-gray-200 rounded-md">
             <option value="">— Chưa chọn —</option>
@@ -281,6 +304,33 @@ function EditUserForm({ user, onSubmit, onCancel, departments }: { user: User; o
           </select>
         </div>
       </div>
+
+      {isQl && (
+        <div>
+          <label className="text-xs font-medium text-gray-700 block mb-1.5">
+            Bộ phận quản lý <span className="text-gray-400 font-normal">(có thể chọn nhiều)</span>
+          </label>
+          <div className="border border-gray-200 rounded-md p-2 space-y-1 max-h-32 overflow-y-auto">
+            {departments.filter(d => d.isActive).map(d => (
+              <label key={d.id} className="flex items-center gap-2 px-1 py-0.5 rounded hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={managedIds.includes(d.id)}
+                  onChange={() => toggleDept(d.id)}
+                  className="accent-indigo-500"
+                />
+                <span className="text-sm text-gray-700">{d.name}</span>
+              </label>
+            ))}
+          </div>
+          {managedIds.length > 0 && (
+            <p className="text-[11px] text-indigo-600 mt-1">
+              Đang quản lý: {managedIds.map(id => departments.find(d => d.id === id)?.name).filter(Boolean).join(', ')}
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="flex justify-end gap-2 pt-1">
         <button type="button" onClick={onCancel} className="h-8 px-4 text-sm border border-gray-200 rounded-md hover:bg-gray-50">Hủy</button>
         <button type="submit" className="h-8 px-4 text-sm bg-indigo-500 text-white rounded-md hover:bg-indigo-600">Lưu</button>

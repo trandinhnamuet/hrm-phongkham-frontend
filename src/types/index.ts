@@ -22,6 +22,7 @@ export interface User {
   status: UserStatus;
   departmentId?: number;
   department?: Department;
+  managedDepartments?: Department[];
   createdAt: string;
 }
 
