@@ -9,6 +9,7 @@ import { Task, TaskStatus, TaskPriority } from '@/types';
 import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { TaskDetailDialog } from '@/components/tasks/task-detail-dialog';
 
 const STATUS_COLS: { key: TaskStatus; label: string; color: string }[] = [
   { key: 'TODO',        label: 'Cần làm',     color: 'bg-gray-100 text-gray-700' },
@@ -34,7 +35,6 @@ export default function TasksPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('');
-  const [newComment, setNewComment] = useState('');
 
   // Drag-and-drop state
   const dragRef = useRef<{ id: number; fromStatus: TaskStatus } | null>(null);
@@ -60,27 +60,10 @@ export default function TasksPage() {
     enabled: user?.role !== 'NHAN_VIEN',
   });
 
-  const { data: taskDetail } = useQuery<Task>({
-    queryKey: ['task', selectedTask?.id],
-    queryFn: () => api.get(`/tasks/${selectedTask!.id}`).then(r => r.data),
-    enabled: !!selectedTask,
-  });
-
+  // Mutation đổi trạng thái khi kéo-thả kanban
   const updateTask = useMutation({
     mutationFn: ({ id, data }: { id: number; data: any }) => api.patch(`/tasks/${id}`, data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['my-tasks'] });
-      qc.invalidateQueries({ queryKey: ['task'] });
-    },
-  });
-
-  const addComment = useMutation({
-    mutationFn: ({ taskId, body }: { taskId: number; body: string }) =>
-      api.post(`/tasks/${taskId}/comments`, { body }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['task', selectedTask?.id] });
-      setNewComment('');
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['my-tasks'] }),
   });
 
   const createTask = useMutation({
@@ -217,83 +200,14 @@ export default function TasksPage() {
         )}
       </div>
 
-      {/* Task Detail Dialog */}
-      <Dialog open={!!selectedTask} onOpenChange={(o) => !o && setSelectedTask(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          {taskDetail && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="text-base">{taskDetail.title}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 mt-2">
-                <div className="flex flex-wrap gap-2">
-                  <select
-                    value={taskDetail.status}
-                    onChange={(e) => updateTask.mutate({ id: taskDetail.id, data: { status: e.target.value } })}
-                    className="h-7 px-2 text-xs border border-gray-200 rounded-md">
-                    {STATUS_COLS.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-                  </select>
-                  <select
-                    value={taskDetail.priority}
-                    onChange={(e) => updateTask.mutate({ id: taskDetail.id, data: { priority: e.target.value } })}
-                    className="h-7 px-2 text-xs border border-gray-200 rounded-md">
-                    {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                  {taskDetail.assignee && (
-                    <span className="flex items-center gap-1 text-xs text-gray-600 border border-gray-200 rounded-md px-2 h-7">
-                      👤 {taskDetail.assignee.fullName}
-                    </span>
-                  )}
-                  {taskDetail.dueDate && (
-                    <span className="flex items-center gap-1 text-xs text-gray-600 border border-gray-200 rounded-md px-2 h-7">
-                      📅 {new Date(taskDetail.dueDate).toLocaleDateString('vi-VN')}
-                    </span>
-                  )}
-                </div>
-
-                {taskDetail.description && (
-                  <p className="text-sm text-gray-700 bg-gray-50 rounded-md p-3">{taskDetail.description}</p>
-                )}
-
-                <div>
-                  <p className="text-xs font-medium text-gray-500 mb-2">Bình luận ({taskDetail.comments?.length || 0})</p>
-                  <div className="space-y-2 mb-3">
-                    {taskDetail.comments?.map((c: any) => (
-                      <div key={c.id} className="flex gap-2">
-                        <div className="w-6 h-6 rounded-full bg-indigo-100 flex-shrink-0 flex items-center justify-center">
-                          <span className="text-[10px] text-indigo-600">{c.user?.fullName?.charAt(0)}</span>
-                        </div>
-                        <div className="flex-1 bg-gray-50 rounded-md px-3 py-2">
-                          <p className="text-xs font-medium text-gray-700">{c.user?.fullName}</p>
-                          <p className="text-sm text-gray-800">{c.body}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                      placeholder="Thêm bình luận..."
-                      className="flex-1 h-8 px-3 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && newComment.trim()) {
-                          addComment.mutate({ taskId: taskDetail.id, body: newComment.trim() });
-                        }
-                      }}
-                    />
-                    <button
-                      onClick={() => newComment.trim() && addComment.mutate({ taskId: taskDetail.id, body: newComment.trim() })}
-                      className="h-8 px-3 bg-indigo-500 text-white text-xs rounded-md hover:bg-indigo-600">
-                      Gửi
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Task Detail Dialog (dùng chung với màn /tasks/manage) */}
+      <TaskDetailDialog
+        taskId={selectedTask?.id ?? null}
+        onClose={() => setSelectedTask(null)}
+        users={users}
+        canDelete={user?.role !== 'NHAN_VIEN'}
+        onChanged={() => qc.invalidateQueries({ queryKey: ['my-tasks'] })}
+      />
 
       <CreateTaskDialog
         open={showCreate}
