@@ -263,7 +263,7 @@ function CreateTaskDialog({ open, onClose, users, userRole, userId, onSubmit }: 
           {userRole !== 'NHAN_VIEN' && (
             <div>
               <label className="text-xs font-medium text-gray-700 block mb-1">
-                Giao cho <span className="text-gray-400 font-normal">(chọn được nhiều người)</span>
+                Giao cho <span className="text-gray-400 font-normal">(tìm và thêm nhiều người)</span>
               </label>
               <AssigneePicker users={users} value={form.assigneeIds}
                 onChange={ids => setForm(f => ({ ...f, assigneeIds: ids }))} />

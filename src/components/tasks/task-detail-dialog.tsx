@@ -94,6 +94,13 @@ export function TaskDetailDialog({ taskId, onClose, users = [], canDelete = fals
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
+  // Người được giao được lưu riêng, tự động — xem flushAssignees bên dưới.
+  const [assigneeSaving, setAssigneeSaving] = useState(false);
+  const [assigneeSavedAt, setAssigneeSavedAt] = useState<number | null>(null);
+  const pendingRef = useRef<{ taskId: number; ids: string[] } | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushRef = useRef<() => void>(() => {});
+
   const canAssign = users.length > 0;
 
   const { data: taskDetail } = useQuery<Task>({
@@ -127,6 +134,8 @@ export function TaskDetailDialog({ taskId, onClose, users = [], canDelete = fals
     setShowHistory(false);
     setShowDeleteConfirm(false);
     setNewComment('');
+    setAssigneeSaving(false);
+    setAssigneeSavedAt(null);
   }, [taskId]);
 
   // Tự co giãn chiều cao ô tiêu đề
@@ -166,6 +175,63 @@ export function TaskDetailDialog({ taskId, onClose, users = [], canDelete = fals
     },
   });
 
+  /* ── Người được giao: tự lưu, không cần bấm Lưu ──
+     Gom thay đổi trong 600ms rồi gửi một lần, để thêm/bỏ nhiều người liên tiếp
+     không sinh ra hàng loạt bản ghi history. */
+  const flushAssignees = () => {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    const p = pendingRef.current;
+    pendingRef.current = null;
+    if (!p) return;
+
+    setAssigneeSaving(true);
+    api.patch(`/tasks/${p.taskId}`, { assigneeIds: p.ids })
+      .then(() => {
+        qc.invalidateQueries({ queryKey: ['task', p.taskId] });
+        qc.invalidateQueries({ queryKey: ['task-history', p.taskId] });
+        onChanged?.();
+        setAssigneeSavedAt(Date.now());
+      })
+      .catch((e: any) => {
+        toast.error(e.response?.data?.message || 'Không thể lưu người được giao');
+        // Trả UI về đúng danh sách đang có trên server
+        const fresh = qc.getQueryData<Task>(['task', p.taskId]);
+        if (fresh) {
+          setEditForm(f => f ? { ...f, assigneeIds: (fresh.assignees ?? []).map(a => a.id) } : f);
+        }
+        qc.invalidateQueries({ queryKey: ['task', p.taskId] });
+      })
+      .finally(() => setAssigneeSaving(false));
+  };
+  flushRef.current = flushAssignees;
+
+  const changeAssignees = (ids: string[]) => {
+    if (!taskId) return;
+    setEditForm(f => f ? { ...f, assigneeIds: ids } : f);
+    setAssigneeSavedAt(null);
+
+    // Nếu người dùng thêm rồi bỏ, quay về đúng danh sách của server thì khỏi gửi.
+    if (sameIds(ids, (taskDetail?.assignees ?? []).map(a => a.id))) {
+      if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+      pendingRef.current = null;
+      return;
+    }
+
+    pendingRef.current = { taskId, ids };
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => flushRef.current(), 600);
+  };
+
+  // Đóng dialog / đổi task: gửi ngay thay đổi còn treo, tránh mất thao tác cuối.
+  useEffect(() => () => { flushRef.current(); }, [taskId]);
+
+  // Chỉ báo "Đã lưu" tự tắt sau 2 giây
+  useEffect(() => {
+    if (!assigneeSavedAt) return;
+    const t = setTimeout(() => setAssigneeSavedAt(null), 2000);
+    return () => clearTimeout(t);
+  }, [assigneeSavedAt]);
+
   const allowedStatuses: TaskStatus[] = taskDetail?.status === 'QUA_HAN'
     ? ['QUA_HAN', 'DONE']
     : ['TODO', 'IN_PROGRESS', 'DONE', 'CANCELLED'];
@@ -175,7 +241,6 @@ export function TaskDetailDialog({ taskId, onClose, users = [], canDelete = fals
     editForm.description !== (taskDetail.description || '') ||
     editForm.status !== taskDetail.status ||
     editForm.priority !== taskDetail.priority ||
-    !sameIds(editForm.assigneeIds, (taskDetail.assignees ?? []).map(a => a.id)) ||
     editForm.dueDate !== toDateInput(taskDetail.dueDate)
   ));
 
@@ -188,9 +253,6 @@ export function TaskDetailDialog({ taskId, onClose, users = [], canDelete = fals
     if (editForm.description !== (taskDetail.description || '')) data.description = editForm.description;
     if (editForm.status !== taskDetail.status) data.status = editForm.status;
     if (editForm.priority !== taskDetail.priority) data.priority = editForm.priority;
-    if (!sameIds(editForm.assigneeIds, (taskDetail.assignees ?? []).map(a => a.id))) {
-      data.assigneeIds = editForm.assigneeIds;
-    }
     if (editForm.dueDate !== toDateInput(taskDetail.dueDate)) data.dueDate = editForm.dueDate;
     updateTask.mutate(data);
   };
@@ -251,17 +313,27 @@ export function TaskDetailDialog({ taskId, onClose, users = [], canDelete = fals
                 <div className="col-span-2">
                   <p className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1.5">
                     <UserIcon size={10} /> Giao cho
-                    {canAssign && <span className="normal-case tracking-normal text-gray-300">(nhiều người)</span>}
+                    {canAssign && (
+                      <span className="normal-case tracking-normal text-gray-300">
+                        (thêm / bỏ là tự lưu)
+                      </span>
+                    )}
                   </p>
                   {canAssign ? (
-                    <AssigneePicker users={users} value={editForm.assigneeIds}
-                      onChange={ids => setEditForm(f => f ? { ...f, assigneeIds: ids } : f)} />
+                    <AssigneePicker
+                      users={users}
+                      value={editForm.assigneeIds}
+                      onChange={changeAssignees}
+                      saving={assigneeSaving}
+                      savedAt={assigneeSavedAt}
+                    />
                   ) : (
-                    <div className="w-full min-h-8 px-2 py-1.5 flex items-center text-sm text-gray-700 border border-gray-200 rounded-md bg-white">
-                      {(taskDetail.assignees ?? []).length > 0
-                        ? (taskDetail.assignees ?? []).map(a => a.fullName).join(', ')
-                        : 'Chưa giao'}
-                    </div>
+                    <AssigneePicker
+                      users={taskDetail.assignees ?? []}
+                      value={(taskDetail.assignees ?? []).map(a => a.id)}
+                      onChange={() => {}}
+                      readOnly
+                    />
                   )}
                 </div>
 
