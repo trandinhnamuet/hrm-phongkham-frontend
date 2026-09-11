@@ -10,6 +10,7 @@ import { Plus, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TaskDetailDialog } from '@/components/tasks/task-detail-dialog';
+import { AssigneeStack, AssigneePicker } from '@/components/tasks/assignee-picker';
 
 /* ─── Constants ──────────────────────────────────────────── */
 const TODAY = new Date().toISOString().split('T')[0];
@@ -93,7 +94,11 @@ export default function ManageTasksPage() {
 
   const usersInDept = filterDepartment ? users.filter(u => String(u.departmentId) === filterDepartment) : users;
   const filteredTasks = filterDepartment
-    ? tasks.filter(t => !t.assignee || usersInDept.some(u => u.id === t.assignee!.id))
+    ? tasks.filter(t => {
+        const list = t.assignees ?? [];
+        // Chưa giao cho ai thì vẫn hiện, giữ đúng hành vi cũ.
+        return list.length === 0 || list.some(a => usersInDept.some(u => u.id === a.id));
+      })
     : tasks;
   const grouped = STATUS_COLS.map(col => ({ ...col, tasks: filteredTasks.filter(t => t.status === col.key) }));
 
@@ -197,14 +202,7 @@ export default function ManageTasksPage() {
                           </span>
                         )}
                       </div>
-                      {task.assignee && (
-                        <div className="flex items-center gap-1.5 mt-2">
-                          <div className="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                            <span className="text-[10px] text-indigo-600 font-semibold">{task.assignee.fullName?.charAt(0)}</span>
-                          </div>
-                          <span className="text-[11px] text-gray-500 truncate">{task.assignee.fullName}</span>
-                        </div>
-                      )}
+                      <AssigneeStack assignees={task.assignees} />
                     </div>
                   ))}
                   {col.tasks.length === 0 && dragOverCol === col.key && col.canDropInto && (
@@ -235,11 +233,18 @@ export default function ManageTasksPage() {
 
 /* ─── Create dialog ──────────────────────────────────────── */
 function CreateTaskDialog({ open, onClose, users, onSubmit }: any) {
-  const [form, setForm] = useState({ title: '', description: '', assigneeId: '', priority: 'NORMAL', dueDate: '' });
+  const [form, setForm] = useState({
+    title: '', description: '', assigneeIds: [] as string[], priority: 'NORMAL', dueDate: '',
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({ ...form, assigneeId: form.assigneeId || undefined, dueDate: form.dueDate || undefined });
+    onSubmit({
+      ...form,
+      // Không chọn ai thì để backend mặc định giao cho người tạo.
+      assigneeIds: form.assigneeIds.length > 0 ? form.assigneeIds : undefined,
+      dueDate: form.dueDate || undefined,
+    });
   };
 
   return (
@@ -258,12 +263,11 @@ function CreateTaskDialog({ open, onClose, users, onSubmit }: any) {
               rows={3} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400 resize-none" />
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-700 block mb-1">Giao cho</label>
-            <select value={form.assigneeId} onChange={e => setForm(f => ({ ...f, assigneeId: e.target.value }))}
-              className="w-full h-9 px-2 text-sm border border-gray-200 rounded-md">
-              <option value="">-- Chưa chọn --</option>
-              {users.map((u: any) => <option key={u.id} value={u.id}>{u.fullName}</option>)}
-            </select>
+            <label className="text-xs font-medium text-gray-700 block mb-1">
+              Giao cho <span className="text-gray-400 font-normal">(chọn được nhiều người)</span>
+            </label>
+            <AssigneePicker users={users} value={form.assigneeIds}
+              onChange={ids => setForm(f => ({ ...f, assigneeIds: ids }))} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

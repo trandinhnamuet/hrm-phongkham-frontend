@@ -416,8 +416,10 @@ function RecentTasksList({ tasks }: { tasks: any[] }) {
               <StatusDot status={task.status} />
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-gray-800 truncate">{task.title}</p>
-                {task.assignee && (
-                  <p className="text-xs text-gray-400 truncate">{task.assignee.fullName}</p>
+                {(task.assignees ?? []).length > 0 && (
+                  <p className="text-xs text-gray-400 truncate">
+                    {(task.assignees as any[]).map((a: any) => a.fullName).join(', ')}
+                  </p>
                 )}
               </div>
               <PriorityBadge priority={task.priority} />

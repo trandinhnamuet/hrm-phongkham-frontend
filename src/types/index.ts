@@ -34,6 +34,9 @@ export interface Task {
   title: string;
   description?: string;
   createdBy: User;
+  /** Danh sách người được giao — một công việc có thể giao cho nhiều người. */
+  assignees?: User[];
+  /** @deprecated backend vẫn trả về (= assignees[0]) cho client cũ. Dùng assignees. */
   assignee?: User;
   priority: TaskPriority;
   status: TaskStatus;

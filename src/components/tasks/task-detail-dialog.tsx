@@ -7,6 +7,7 @@ import { Task, TaskStatus, TaskPriority, User, TaskHistory } from '@/types';
 import { History, Calendar, User as UserIcon, Flag, Tag, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { AssigneePicker } from '@/components/tasks/assignee-picker';
 
 const TODAY = new Date().toISOString().split('T')[0];
 
@@ -27,10 +28,18 @@ export const TASK_PRIORITY_META: Record<TaskPriority, { label: string; color: st
 
 const FIELD_LABELS: Record<string, string> = {
   status: 'Trạng thái', title: 'Tiêu đề', description: 'Mô tả',
-  assigneeId: 'Người được giao', priority: 'Độ ưu tiên', dueDate: 'Hạn',
+  assigneeIds: 'Người được giao', assigneeId: 'Người được giao',
+  priority: 'Độ ưu tiên', dueDate: 'Hạn',
 };
 
 function toDateInput(v?: string) { return v ? v.split('T')[0] : ''; }
+
+/** So sánh 2 danh sách id, bỏ qua thứ tự. */
+function sameIds(a: string[], b: string[]) {
+  if (a.length !== b.length) return false;
+  const sb = [...b].sort();
+  return [...a].sort().every((x, i) => x === sb[i]);
+}
 
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -47,7 +56,12 @@ function fmtHistVal(field: string, val: string, users: User[]) {
   if (!val) return '(trống)';
   if (field === 'status') return TASK_STATUS_META[val as TaskStatus]?.label || val;
   if (field === 'priority') return TASK_PRIORITY_META[val as TaskPriority]?.label || val;
-  if (field === 'assigneeId') return users.find(u => u.id === val)?.fullName || val.slice(0, 8) + '…';
+  if (field === 'assigneeId' || field === 'assigneeIds') {
+    // assigneeIds lưu danh sách uuid cách nhau bởi dấu phẩy
+    return val.split(',').filter(Boolean)
+      .map(id => users.find(u => u.id === id)?.fullName || id.slice(0, 8) + '…')
+      .join(', ') || '(trống)';
+  }
   if (field === 'dueDate') { try { return new Date(val).toLocaleDateString('vi-VN'); } catch { return val; } }
   return val.length > 60 ? val.slice(0, 60) + '…' : val;
 }
@@ -57,7 +71,7 @@ interface EditForm {
   description: string;
   status: string;
   priority: string;
-  assigneeId: string;
+  assigneeIds: string[];
   dueDate: string;
 }
 
@@ -101,7 +115,7 @@ export function TaskDetailDialog({ taskId, onClose, users = [], canDelete = fals
         description: taskDetail.description || '',
         status: taskDetail.status,
         priority: taskDetail.priority,
-        assigneeId: taskDetail.assignee?.id || '',
+        assigneeIds: (taskDetail.assignees ?? []).map(a => a.id),
         dueDate: toDateInput(taskDetail.dueDate),
       });
     }
@@ -161,7 +175,7 @@ export function TaskDetailDialog({ taskId, onClose, users = [], canDelete = fals
     editForm.description !== (taskDetail.description || '') ||
     editForm.status !== taskDetail.status ||
     editForm.priority !== taskDetail.priority ||
-    editForm.assigneeId !== (taskDetail.assignee?.id || '') ||
+    !sameIds(editForm.assigneeIds, (taskDetail.assignees ?? []).map(a => a.id)) ||
     editForm.dueDate !== toDateInput(taskDetail.dueDate)
   ));
 
@@ -174,7 +188,9 @@ export function TaskDetailDialog({ taskId, onClose, users = [], canDelete = fals
     if (editForm.description !== (taskDetail.description || '')) data.description = editForm.description;
     if (editForm.status !== taskDetail.status) data.status = editForm.status;
     if (editForm.priority !== taskDetail.priority) data.priority = editForm.priority;
-    if (editForm.assigneeId !== (taskDetail.assignee?.id || '')) data.assigneeId = editForm.assigneeId || null;
+    if (!sameIds(editForm.assigneeIds, (taskDetail.assignees ?? []).map(a => a.id))) {
+      data.assigneeIds = editForm.assigneeIds;
+    }
     if (editForm.dueDate !== toDateInput(taskDetail.dueDate)) data.dueDate = editForm.dueDate;
     updateTask.mutate(data);
   };
@@ -232,20 +248,19 @@ export function TaskDetailDialog({ taskId, onClose, users = [], canDelete = fals
                 </div>
 
                 {/* Giao cho */}
-                <div>
+                <div className="col-span-2">
                   <p className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1.5">
                     <UserIcon size={10} /> Giao cho
+                    {canAssign && <span className="normal-case tracking-normal text-gray-300">(nhiều người)</span>}
                   </p>
                   {canAssign ? (
-                    <select value={editForm.assigneeId}
-                      onChange={e => setEditForm(f => f ? { ...f, assigneeId: e.target.value } : f)}
-                      className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white outline-none focus:border-indigo-400">
-                      <option value="">-- Chưa giao --</option>
-                      {users.map(u => <option key={u.id} value={u.id}>{u.fullName}</option>)}
-                    </select>
+                    <AssigneePicker users={users} value={editForm.assigneeIds}
+                      onChange={ids => setEditForm(f => f ? { ...f, assigneeIds: ids } : f)} />
                   ) : (
-                    <div className="w-full h-8 px-2 flex items-center text-sm text-gray-700 border border-gray-200 rounded-md bg-white">
-                      {taskDetail.assignee?.fullName || 'Chưa giao'}
+                    <div className="w-full min-h-8 px-2 py-1.5 flex items-center text-sm text-gray-700 border border-gray-200 rounded-md bg-white">
+                      {(taskDetail.assignees ?? []).length > 0
+                        ? (taskDetail.assignees ?? []).map(a => a.fullName).join(', ')
+                        : 'Chưa giao'}
                     </div>
                   )}
                 </div>

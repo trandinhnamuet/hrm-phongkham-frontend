@@ -10,6 +10,7 @@ import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TaskDetailDialog } from '@/components/tasks/task-detail-dialog';
+import { AssigneeStack, AssigneePicker } from '@/components/tasks/assignee-picker';
 
 const STATUS_COLS: { key: TaskStatus; label: string; color: string }[] = [
   { key: 'TODO',        label: 'Cần làm',     color: 'bg-gray-100 text-gray-700' },
@@ -174,16 +175,7 @@ export default function TasksPage() {
                           </span>
                         )}
                       </div>
-                      {task.assignee && (
-                        <div className="flex items-center gap-1.5 mt-2">
-                          <div className="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center">
-                            <span className="text-[10px] text-indigo-600 font-semibold">
-                              {task.assignee.fullName?.charAt(0)}
-                            </span>
-                          </div>
-                          <span className="text-[11px] text-gray-500">{task.assignee.fullName}</span>
-                        </div>
-                      )}
+                      <AssigneeStack assignees={task.assignees} />
                     </div>
                   ))}
 
@@ -222,11 +214,18 @@ export default function TasksPage() {
 }
 
 function CreateTaskDialog({ open, onClose, users, userRole, userId, onSubmit }: any) {
-  const [form, setForm] = useState({ title: '', description: '', assigneeId: '', priority: 'NORMAL', dueDate: '' });
+  const [form, setForm] = useState({
+    title: '', description: '', assigneeIds: [] as string[], priority: 'NORMAL', dueDate: '',
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({ ...form, assigneeId: form.assigneeId || undefined, dueDate: form.dueDate || undefined });
+    onSubmit({
+      ...form,
+      // Không chọn ai thì để backend mặc định giao cho người tạo.
+      assigneeIds: form.assigneeIds.length > 0 ? form.assigneeIds : undefined,
+      dueDate: form.dueDate || undefined,
+    });
   };
 
   return (
@@ -263,12 +262,11 @@ function CreateTaskDialog({ open, onClose, users, userRole, userId, onSubmit }: 
           </div>
           {userRole !== 'NHAN_VIEN' && (
             <div>
-              <label className="text-xs font-medium text-gray-700 block mb-1">Giao cho</label>
-              <select value={form.assigneeId} onChange={e => setForm(f => ({ ...f, assigneeId: e.target.value }))}
-                className="w-full h-9 px-2 text-sm border border-gray-200 rounded-md">
-                <option value="">-- Chưa chọn --</option>
-                {users.map((u: any) => <option key={u.id} value={u.id}>{u.fullName}</option>)}
-              </select>
+              <label className="text-xs font-medium text-gray-700 block mb-1">
+                Giao cho <span className="text-gray-400 font-normal">(chọn được nhiều người)</span>
+              </label>
+              <AssigneePicker users={users} value={form.assigneeIds}
+                onChange={ids => setForm(f => ({ ...f, assigneeIds: ids }))} />
             </div>
           )}
           <div className="flex justify-end gap-2 pt-2">
