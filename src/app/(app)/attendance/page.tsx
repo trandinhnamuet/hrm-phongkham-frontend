@@ -8,7 +8,7 @@ import api from '@/lib/api';
 import { AttendanceLog, User } from '@/types';
 import {
   LogIn, LogOut, Clock, MapPin, AlertCircle, Users,
-  Download, PencilLine, Check, X as XIcon, List, LayoutGrid,
+  Download, PencilLine, Check, X as XIcon, List, LayoutGrid, Trash2, Save,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SearchSelect } from '@/components/ui/search-select';
@@ -42,9 +42,10 @@ export default function AttendancePage() {
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth() + 1);
   const [gpsLoading, setGpsLoading] = useState<'in' | 'out' | null>(null);
-  const [showAdjust, setShowAdjust] = useState(false);
-  const [adjustLog, setAdjustLog] = useState<AttendanceLog | null>(null);
-  const [adjustForm, setAdjustForm] = useState({ logId: 0, field: 'CHECK_IN', requestedValue: '', reason: '' });
+  // Giám đốc sửa thẳng bản ghi, không còn đi qua vòng "gửi yêu cầu rồi tự duyệt".
+  const [editLog, setEditLog] = useState<AttendanceLog | null>(null);
+  const [editForm, setEditForm] = useState({ checkInAt: '', checkOutAt: '', status: '', note: '' });
+  const [delLog, setDelLog] = useState<AttendanceLog | null>(null);
   const [filterUserId, setFilterUserId] = useState('');
   const [view, setView] = useState<'list' | 'grid'>('list');
   // Hộp hướng dẫn GPS: null = đóng; reason = null nghĩa là đang ở bước xin quyền.
@@ -121,11 +122,41 @@ export default function AttendancePage() {
   const doCheckIn = () => runAttendance('in');
   const doCheckOut = () => runAttendance('out');
 
-  const submitAdj = useMutation({
-    mutationFn: (data: any) => api.post('/attendance/adjustments', data),
-    onSuccess: () => { toast.success('Đã gửi yêu cầu điều chỉnh'); setShowAdjust(false); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Lỗi gửi yêu cầu'),
+  const refreshLogs = () => {
+    qc.invalidateQueries({ queryKey: ['all-logs'] });
+    qc.invalidateQueries({ queryKey: ['my-logs'] });
+    qc.invalidateQueries({ queryKey: ['attendance-today'] });
+  };
+
+  const saveLog = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) => api.patch(`/attendance/${id}`, data),
+    onSuccess: () => {
+      toast.success('Đã lưu bản ghi chấm công');
+      setEditLog(null);
+      refreshLogs();
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Không lưu được'),
   });
+
+  const removeLog = useMutation({
+    mutationFn: (id: number) => api.delete(`/attendance/${id}`),
+    onSuccess: () => {
+      toast.success('Đã xóa bản ghi chấm công');
+      setDelLog(null);
+      refreshLogs();
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Không xóa được'),
+  });
+
+  const openEdit = (log: AttendanceLog) => {
+    setEditForm({
+      checkInAt: toDatetimeLocal(log.checkInAt),
+      checkOutAt: toDatetimeLocal(log.checkOutAt),
+      status: log.status,
+      note: log.note || '',
+    });
+    setEditLog(log);
+  };
 
   const reviewAdj = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string }) =>
@@ -391,15 +422,12 @@ export default function AttendancePage() {
                   </div>
                 </div>
                 {isDirector && (
-                  <div className="flex justify-end mt-2">
-                    <button
-                      onClick={() => {
-                        setAdjustLog(log);
-                        setAdjustForm({ logId: log.id, field: 'CHECK_IN', requestedValue: toDatetimeLocal(log.checkInAt), reason: '' });
-                        setShowAdjust(true);
-                      }}
-                      className="btn btn-sm btn-ghost text-indigo-600">
-                      <PencilLine size={14} /> Điều chỉnh
+                  <div className="flex justify-end gap-1 mt-2">
+                    <button onClick={() => openEdit(log)} className="btn btn-sm btn-ghost text-indigo-600">
+                      <PencilLine size={14} /> Sửa
+                    </button>
+                    <button onClick={() => setDelLog(log)} className="btn btn-sm btn-ghost text-red-600">
+                      <Trash2 size={14} /> Xóa
                     </button>
                   </div>
                 )}
@@ -435,18 +463,24 @@ export default function AttendancePage() {
                   </td>
                   {isDirector && (
                     <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => {
-                          setAdjustLog(log);
-                          setAdjustForm({ logId: log.id, field: 'CHECK_IN', requestedValue: toDatetimeLocal(log.checkInAt), reason: '' });
-                          setShowAdjust(true);
-                        }}
-                        title="Điều chỉnh chấm công"
-                        aria-label={`Điều chỉnh chấm công ngày ${log.workDate}`}
-                        className="icon-btn hover:text-indigo-600 hover:bg-indigo-50"
-                      >
-                        <PencilLine size={15} />
-                      </button>
+                      <div className="inline-flex gap-1">
+                        <button
+                          onClick={() => openEdit(log)}
+                          title="Sửa bản ghi chấm công"
+                          aria-label={`Sửa chấm công ngày ${log.workDate}`}
+                          className="icon-btn hover:text-indigo-600 hover:bg-indigo-50"
+                        >
+                          <PencilLine size={15} />
+                        </button>
+                        <button
+                          onClick={() => setDelLog(log)}
+                          title="Xóa bản ghi chấm công"
+                          aria-label={`Xóa chấm công ngày ${log.workDate}`}
+                          className="icon-btn hover:text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -474,57 +508,124 @@ export default function AttendancePage() {
         }}
       />
 
-      {/* Adjustment modal — GIAM_DOC only */}
-      {showAdjust && isDirector && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-5 w-full max-w-sm shadow-xl">
-            <p className="text-base font-semibold mb-1">Yêu cầu điều chỉnh công</p>
-            {adjustLog && (
-              <p className="text-xs text-gray-500 mb-4">
-                {(adjustLog as any).user?.fullName && <><span className="font-medium">{(adjustLog as any).user.fullName}</span> · </>}
-                {adjustLog.workDate}
-              </p>
-            )}
+      {/* Sửa thẳng bản ghi — chỉ giám đốc */}
+      {editLog && isDirector && (
+        <div className="fixed inset-0 bg-slate-900/55 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-3 sm:p-4"
+          onClick={() => setEditLog(null)}>
+          <div className="bg-white rounded-2xl p-5 w-full max-w-md shadow-2xl pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:pb-5"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div className="min-w-0">
+                <p className="text-base font-semibold text-gray-900">Sửa bản ghi chấm công</p>
+                <p className="text-xs text-gray-500 mt-0.5 truncate">
+                  {editLog.user?.fullName && <><span className="font-medium">{editLog.user.fullName}</span> · </>}
+                  {editLog.workDate}
+                </p>
+              </div>
+              <button onClick={() => setEditLog(null)} className="icon-btn -mr-1 -mt-1"><XIcon size={16} /></button>
+            </div>
+
             <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="lbl">Giờ vào</label>
+                  <input type="datetime-local" value={editForm.checkInAt}
+                    onChange={e => setEditForm(f => ({ ...f, checkInAt: e.target.value }))}
+                    className="field" />
+                </div>
+                <div>
+                  <label className="lbl">Giờ ra</label>
+                  <input type="datetime-local" value={editForm.checkOutAt}
+                    onChange={e => setEditForm(f => ({ ...f, checkOutAt: e.target.value }))}
+                    className="field" />
+                </div>
+              </div>
               <div>
-                <label className="lbl">Trường cần sửa</label>
-                <select value={adjustForm.field} onChange={e => {
-                    const f = e.target.value;
-                    const val = f === 'CHECK_IN' ? toDatetimeLocal(adjustLog?.checkInAt)
-                              : f === 'CHECK_OUT' ? toDatetimeLocal(adjustLog?.checkOutAt)
-                              : adjustLog?.status ?? '';
-                    setAdjustForm(prev => ({ ...prev, field: f, requestedValue: val }));
-                  }}
+                <label className="lbl">Trạng thái</label>
+                <select value={editForm.status}
+                  onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}
                   className="field">
-                  <option value="CHECK_IN">Giờ vào</option>
-                  <option value="CHECK_OUT">Giờ ra</option>
-                  <option value="STATUS">Trạng thái</option>
+                  {Object.entries(STATUS_MAP).map(([k, v]) => (
+                    <option key={k} value={k}>{v.label}</option>
+                  ))}
                 </select>
+                {/* Đi muộn và số phút làm được máy tính lại từ giờ mới, nói rõ để
+                    người sửa không tưởng mình phải tự tính rồi nhập tay. */}
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Số phút đi muộn và thời gian làm sẽ được tính lại theo giờ mới.
+                </p>
               </div>
               <div>
-                <label className="lbl">Giá trị mới</label>
-                <input type={adjustForm.field === 'STATUS' ? 'text' : 'datetime-local'}
-                  value={adjustForm.requestedValue}
-                  onChange={e => setAdjustForm(f => ({ ...f, requestedValue: e.target.value }))}
-                  className="field" />
-              </div>
-              <div>
-                <label className="lbl">Lý do</label>
-                <textarea value={adjustForm.reason} onChange={e => setAdjustForm(f => ({ ...f, reason: e.target.value }))}
-                  rows={2} className="field field-area" />
+                <label className="lbl">Ghi chú</label>
+                <textarea value={editForm.note}
+                  onChange={e => setEditForm(f => ({ ...f, note: e.target.value }))}
+                  rows={2} placeholder="Lý do sửa, ví dụ: quên chấm công"
+                  className="field field-area" />
               </div>
             </div>
-            <div className="flex gap-2 mt-4 justify-end">
-              <button onClick={() => { setShowAdjust(false); setAdjustLog(null); }}
-                className="btn btn-secondary">Hủy</button>
-              <button onClick={() => submitAdj.mutate(adjustForm)}
-                className="btn btn-primary">Gửi</button>
+
+            <div className="flex gap-2 mt-5">
+              <button onClick={() => setEditLog(null)} className="btn btn-secondary flex-1">Hủy</button>
+              <button
+                disabled={saveLog.isPending}
+                onClick={() => saveLog.mutate({
+                  id: editLog.id,
+                  data: {
+                    checkInAt: fromDatetimeLocal(editForm.checkInAt),
+                    checkOutAt: fromDatetimeLocal(editForm.checkOutAt),
+                    status: editForm.status,
+                    note: editForm.note,
+                  },
+                })}
+                className="btn btn-primary flex-1">
+                <Save size={14} /> {saveLog.isPending ? 'Đang lưu…' : 'Lưu'}
+              </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Xác nhận xóa */}
+      {delLog && isDirector && (
+        <div className="fixed inset-0 bg-slate-900/55 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-3 sm:p-4"
+          onClick={() => setDelLog(null)}>
+          <div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-2xl pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:pb-5"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <span className="w-10 h-10 rounded-full bg-red-50 text-red-600 flex items-center justify-center flex-shrink-0">
+                <Trash2 size={18} />
+              </span>
+              <p className="text-base font-semibold text-gray-900">Xóa bản ghi chấm công?</p>
+            </div>
+            <p className="text-sm text-gray-600 mt-3">
+              {delLog.user?.fullName && <><span className="font-medium">{delLog.user.fullName}</span> · </>}
+              ngày {delLog.workDate}, vào {fmtTime(delLog.checkInAt)} – ra {fmtTime(delLog.checkOutAt)}.
+            </p>
+            <p className="text-xs text-gray-400 mt-1.5">Xóa rồi thì không khôi phục lại được.</p>
+            <div className="flex gap-2 mt-5">
+              <button onClick={() => setDelLog(null)} className="btn btn-secondary flex-1">Hủy</button>
+              <button disabled={removeLog.isPending} onClick={() => removeLog.mutate(delLog.id)}
+                className="btn btn-danger flex-1">
+                <Trash2 size={14} /> {removeLog.isPending ? 'Đang xóa…' : 'Xóa'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
+}
+
+/**
+ * Ngược của toDatetimeLocal: ô datetime-local trả về giờ Việt Nam dạng
+ * 'YYYY-MM-DDTHH:mm', gắn thẳng +07:00 rồi cho Date tự quy về UTC — không tự
+ * cộng trừ giờ bằng tay, tránh sai khi máy người dùng đặt múi giờ khác.
+ */
+function fromDatetimeLocal(v: string): string | null {
+  if (!v) return null;
+  const d = new Date(`${v}:00+07:00`);
+  return isNaN(d.getTime()) ? null : d.toISOString();
 }
 
 function toDatetimeLocal(utcStr?: string) {

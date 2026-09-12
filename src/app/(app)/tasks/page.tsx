@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { useAuth } from '@/contexts/auth-context';
 import api from '@/lib/api';
 import { Task, TaskStatus } from '@/types';
-import { Plus } from 'lucide-react';
+import { Plus, AlertCircle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TaskDetailDialog } from '@/components/tasks/task-detail-dialog';
@@ -27,7 +27,7 @@ const STATUS_COLS: { key: TaskStatus; label: string; color: string; bg: string; 
 
 
 export default function TasksPage() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -50,7 +50,7 @@ export default function TasksPage() {
   // Directors/managers need explicit assigneeId filter; employees are filtered server-side
   const isManagerOrDirector = user?.role === 'GIAM_DOC' || user?.role === 'QUAN_LY';
 
-  const { data: tasks = [], isLoading } = useQuery<Task[]>({
+  const { data: tasks = [], isLoading: loadingTasks, isError, refetch } = useQuery<Task[]>({
     queryKey: ['my-tasks', filterStatus, user?.id],
     queryFn: () => api.get('/tasks', {
       params: {
@@ -60,6 +60,10 @@ export default function TasksPage() {
     }).then(r => r.data),
     enabled: !!user,
   });
+
+  // Auth chưa xong thì query bị tắt và isLoading là false — bảng trống trơn
+  // trông như "không có việc nào" chứ không phải "đang tải".
+  const isLoading = loadingTasks || authLoading;
 
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
@@ -131,7 +135,18 @@ export default function TasksPage() {
 
       {/* Kanban desktop — kéo-thả, chỉ từ lg */}
       <div className="hidden lg:block flex-1 overflow-x-auto p-6">
-        {isLoading ? (
+        {isError ? (
+          <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
+            <span className="w-12 h-12 rounded-full bg-red-50 text-red-500 flex items-center justify-center">
+              <AlertCircle size={22} />
+            </span>
+            <div>
+              <p className="text-sm font-medium text-gray-900">Không tải được danh sách công việc</p>
+              <p className="text-xs text-gray-500 mt-1">Kiểm tra kết nối mạng rồi thử lại.</p>
+            </div>
+            <button onClick={() => refetch()} className="btn btn-secondary btn-sm"><RefreshCw size={14} /> Tải lại</button>
+          </div>
+        ) : isLoading ? (
           <div className="flex items-center justify-center h-full">
             <div className="w-6 h-6 border-2 border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
           </div>

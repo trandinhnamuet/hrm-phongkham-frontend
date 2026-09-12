@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { useAuth } from '@/contexts/auth-context';
 import api from '@/lib/api';
 import { Task, TaskStatus, User, Department } from '@/types';
-import { Plus, ChevronDown } from 'lucide-react';
+import { Plus, ChevronDown, AlertCircle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TaskDetailDialog } from '@/components/tasks/task-detail-dialog';
@@ -29,7 +29,7 @@ const STATUS_COLS: { key: TaskStatus; label: string; color: string; bg: string; 
 
 /* ─── Page ───────────────────────────────────────────────── */
 export default function ManageTasksPage() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -52,7 +52,7 @@ export default function ManageTasksPage() {
 
   const isManager = user?.role === 'GIAM_DOC' || user?.role === 'QUAN_LY';
 
-  const { data: tasks = [], isLoading } = useQuery<Task[]>({
+  const { data: tasks = [], isLoading: loadingTasks, isError, refetch } = useQuery<Task[]>({
     queryKey: ['all-tasks', filterStatus, filterAssignee],
     queryFn: () => api.get('/tasks', {
       params: {
@@ -62,6 +62,11 @@ export default function ManageTasksPage() {
     }).then(r => r.data),
     enabled: isManager,
   });
+
+  /* Lúc trang vừa mở, auth chưa đọc xong người dùng nên query bị tắt, mà query
+     tắt thì isLoading là false — bảng hiện ra trống trơn như thể không có việc
+     nào. Coi luôn giai đoạn đó là "đang tải" thì mới không hiểu nhầm. */
+  const isLoading = loadingTasks || authLoading;
 
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ['users'],
@@ -92,6 +97,15 @@ export default function ManageTasksPage() {
     onError: (err: any) => toast.error(err.response?.data?.message || 'Lỗi tạo công việc'),
   });
 
+  // Chưa biết người dùng là ai thì chưa được kết luận là không có quyền:
+  // trước đây màn hình "Không có quyền truy cập" chớp lên ở mỗi lần F5.
+  if (authLoading || !user) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="w-6 h-6 border-2 border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
   if (!isManager) {
     return <div className="flex items-center justify-center h-full text-sm text-gray-400">Không có quyền truy cập</div>;
   }
@@ -166,7 +180,18 @@ export default function ManageTasksPage() {
 
       {/* Kanban desktop — kéo-thả, chỉ từ lg */}
       <div className="hidden lg:block flex-1 overflow-x-auto p-6">
-        {isLoading ? (
+        {isError ? (
+          <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
+            <span className="w-12 h-12 rounded-full bg-red-50 text-red-500 flex items-center justify-center">
+              <AlertCircle size={22} />
+            </span>
+            <div>
+              <p className="text-sm font-medium text-gray-900">Không tải được danh sách công việc</p>
+              <p className="text-xs text-gray-500 mt-1">Kiểm tra kết nối mạng rồi thử lại.</p>
+            </div>
+            <button onClick={() => refetch()} className="btn btn-secondary btn-sm"><RefreshCw size={14} /> Tải lại</button>
+          </div>
+        ) : isLoading ? (
           <div className="flex items-center justify-center h-full">
             <div className="w-6 h-6 border-2 border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
           </div>

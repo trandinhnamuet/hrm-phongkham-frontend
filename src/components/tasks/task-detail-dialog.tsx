@@ -6,8 +6,7 @@ import api from '@/lib/api';
 import { Task, TaskStatus, TaskPriority, User, TaskHistory } from '@/types';
 import {
   History, Calendar, User as UserIcon, Flag, Tag, Save,
-  ClipboardCheck, CircleCheck, Undo2,
-} from 'lucide-react';
+  ClipboardCheck, CircleCheck, Undo2, AlertCircle,} from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { AssigneePicker } from '@/components/tasks/assignee-picker';
@@ -114,10 +113,12 @@ export function TaskDetailDialog({
 
   const canAssign = users.length > 0;
 
-  const { data: taskDetail } = useQuery<Task>({
+  const { data: taskDetail, isLoading: loadingTask, isError: taskError, error: taskErr } = useQuery<Task>({
     queryKey: ['task', taskId],
     queryFn: () => api.get(`/tasks/${taskId}`).then(r => r.data),
     enabled: !!taskId,
+    // 404 (công việc đã xoá) hay 403 thì thử lại cũng vậy, chỉ bắt người dùng chờ lâu hơn.
+    retry: (n, e: any) => ![403, 404].includes(e?.response?.status) && n < 1,
   });
 
   const { data: taskHistory = [] } = useQuery<TaskHistory[]>({
@@ -349,6 +350,37 @@ export function TaskDetailDialog({
   return (
     <Dialog open={!!taskId} onOpenChange={o => { if (!o) { flushFields(); onClose(); setShowDeleteConfirm(false); } }}>
       <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden gap-0">
+        {/* Thiếu hai nhánh dưới thì lúc đang tải, hoặc lúc công việc đã bị xoá,
+            hộp thoại render rỗng: người dùng chỉ thấy một lớp mờ phủ màn hình,
+            không hiểu chuyện gì và phải bấm ra ngoài mới thoát được. */}
+        {loadingTask && (
+          <div className="py-20 flex flex-col items-center gap-3">
+            <div className="w-6 h-6 border-2 border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
+            <p className="text-sm text-gray-400">Đang tải công việc…</p>
+          </div>
+        )}
+
+        {taskError && (
+          <div className="px-6 py-12 text-center">
+            <span className="w-12 h-12 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center mx-auto mb-3">
+              <AlertCircle size={22} />
+            </span>
+            <p className="text-sm font-medium text-gray-900">
+              {(taskErr as any)?.response?.status === 404
+                ? 'Công việc này không còn nữa'
+                : (taskErr as any)?.response?.status === 403
+                  ? 'Bạn không có quyền xem công việc này'
+                  : 'Không tải được công việc'}
+            </p>
+            <p className="text-xs text-gray-500 mt-1.5 max-w-xs mx-auto">
+              {(taskErr as any)?.response?.status === 404
+                ? 'Có thể công việc đã bị xóa sau khi thông báo được gửi đi.'
+                : (taskErr as any)?.response?.data?.message || 'Kiểm tra kết nối mạng rồi thử lại.'}
+            </p>
+            <button onClick={onClose} className="btn btn-secondary mt-5">Đóng</button>
+          </div>
+        )}
+
         {taskDetail && editForm && (
           <>
             {/* Header — tiêu đề có thể sửa */}

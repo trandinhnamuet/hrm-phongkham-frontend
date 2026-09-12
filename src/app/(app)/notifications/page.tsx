@@ -10,12 +10,14 @@ import { Bell, CheckCheck } from 'lucide-react';
 import {
   NotificationItem, NOTIF_TYPE_META,
 } from '@/components/notifications/notification-item';
-import { openTaskFromLink } from '@/components/notifications/notification-bell';
+import { openTaskFromLink, notifHref } from '@/components/notifications/notification-bell';
+import { useAuth } from '@/contexts/auth-context';
 
 type Filter = 'all' | 'unread';
 
 export default function NotificationsPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const qc = useQueryClient();
   const [filter, setFilter] = useState<Filter>('all');
   const [type, setType] = useState('');
@@ -51,7 +53,7 @@ export default function NotificationsPage() {
   const go = (n: AppNotification) => {
     if (!n.isRead) markRead.mutate(n.id);
     if (n.link) {
-      router.push(n.link);
+      router.push(notifHref(n.link, user?.role));
       setTimeout(() => openTaskFromLink(n.link!), 150);
     }
   };

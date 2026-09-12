@@ -7,6 +7,7 @@ import { Bell, CheckCheck, X, ArrowRight } from 'lucide-react';
 import api from '@/lib/api';
 import { AppNotification } from '@/types';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/auth-context';
 import { NotificationItem } from '@/components/notifications/notification-item';
 
 /**
@@ -14,6 +15,16 @@ import { NotificationItem } from '@/components/notifications/notification-item';
  * Trang công việc nghe sự kiện này thay vì đọc URL, vì khi đang đứng sẵn ở
  * /tasks thì router.push cùng đường dẫn không làm trang mount lại.
  */
+export function notifHref(link: string, role?: string) {
+  const m = link.match(/[?&]task=(\d+)/);
+  if (!m) return link;
+  // Cấp trên nhận thông báo về việc của cấp dưới — việc đó không nằm trong
+  // "Công việc của tôi". Đưa họ về đúng bảng quản lý thì đóng hộp chi tiết ra
+  // là thấy ngay công việc, thay vì rơi vào một danh sách chẳng liên quan.
+  const manage = role === 'GIAM_DOC' || role === 'QUAN_LY';
+  return `${manage ? '/tasks/manage' : '/tasks'}?task=${m[1]}`;
+}
+
 export function openTaskFromLink(link: string) {
   const m = link.match(/[?&]task=(\d+)/);
   if (m) window.dispatchEvent(new CustomEvent('hrm:open-task', { detail: Number(m[1]) }));
@@ -22,6 +33,7 @@ export function openTaskFromLink(link: string) {
 /** Chuông thông báo ở góc phải thanh header: đếm chưa đọc mỗi 30s, bấm mở danh sách. */
 export function NotificationBell() {
   const router = useRouter();
+  const { user } = useAuth();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -66,7 +78,7 @@ export function NotificationBell() {
     if (!n.isRead) markRead.mutate(n.id);
     setOpen(false);
     if (n.link) {
-      router.push(n.link);
+      router.push(notifHref(n.link, user?.role));
       // Đợi điều hướng xong rồi bắn sự kiện mở hộp chi tiết
       setTimeout(() => openTaskFromLink(n.link!), 150);
     }
