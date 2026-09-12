@@ -23,11 +23,34 @@ export const TASK_STATUS_META: Record<TaskStatus, { label: string; color: string
   QUA_HAN:     { label: 'Quá hạn',    color: 'bg-orange-50 text-orange-700' },
 };
 
-export const TASK_PRIORITY_META: Record<TaskPriority, { label: string; color: string }> = {
-  LOW:    { label: 'Thấp',        color: 'bg-gray-100 text-gray-600' },
-  NORMAL: { label: 'Bình thường', color: 'bg-blue-50 text-blue-700' },
-  HIGH:   { label: 'Cao',         color: 'bg-amber-50 text-amber-700' },
-  URGENT: { label: 'Khẩn',        color: 'bg-red-50 text-red-700' },
+export const TASK_PRIORITY_META: Record<TaskPriority, {
+  label: string;
+  /** Màu của nhãn nhỏ hiện tên mức ưu tiên. */
+  color: string;
+  /**
+   * Màu nền + viền của cả thẻ công việc, để nhìn lướt bảng là thấy việc nào gấp.
+   * Gồm luôn bg và border nên nơi dùng KHÔNG đặt thêm bg-white / border-gray-200:
+   * hai lớp tiện ích cùng nhóm thì thứ tự thắng thua do Tailwind sắp, không theo
+   * thứ tự viết trong className.
+   */
+  card: string;
+}> = {
+  LOW: {
+    label: 'Thấp', color: 'bg-gray-100 text-gray-600',
+    card: 'bg-white border border-gray-200 border-l-4 border-l-gray-300',
+  },
+  NORMAL: {
+    label: 'Bình thường', color: 'bg-blue-50 text-blue-700',
+    card: 'bg-white border border-gray-200 border-l-4 border-l-blue-400',
+  },
+  HIGH: {
+    label: 'Cao', color: 'bg-amber-50 text-amber-700',
+    card: 'bg-amber-50/50 border border-amber-200/70 border-l-4 border-l-amber-400',
+  },
+  URGENT: {
+    label: 'Khẩn', color: 'bg-red-50 text-red-700',
+    card: 'bg-red-50/50 border border-red-200/70 border-l-4 border-l-red-500',
+  },
 };
 
 const FIELD_LABELS: Record<string, string> = {

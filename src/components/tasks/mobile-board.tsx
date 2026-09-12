@@ -122,8 +122,9 @@ export function MobileBoard({ columns, tasks, loading, onOpen, onMove, canMoveTo
                   <div
                     key={task.id}
                     className={cn(
-                      'surface p-3.5 active:bg-gray-50 transition-colors',
-                      task.status === 'QUA_HAN' && 'border-orange-200',
+                      'rounded-xl shadow-sm p-3.5 transition-colors',
+                      pr?.card,
+                      task.status === 'QUA_HAN' && 'ring-1 ring-orange-300/60',
                     )}
                   >
                     <button onClick={() => onOpen(task)} className="w-full text-left">

@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/page-header';
 import { useAuth } from '@/contexts/auth-context';
 import api from '@/lib/api';
-import { Task, TaskStatus, TaskPriority } from '@/types';
+import { Task, TaskStatus } from '@/types';
 import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -13,6 +13,7 @@ import { TaskDetailDialog } from '@/components/tasks/task-detail-dialog';
 import { AssigneeStack, AssigneePicker } from '@/components/tasks/assignee-picker';
 import { ReviewBadge } from '@/components/tasks/review-badge';
 import { MobileBoard } from '@/components/tasks/mobile-board';
+import { TASK_PRIORITY_META } from '@/components/tasks/task-detail-dialog';
 
 const STATUS_COLS: { key: TaskStatus; label: string; color: string }[] = [
   { key: 'TODO',        label: 'Cần làm',     color: 'bg-gray-100 text-gray-700' },
@@ -23,16 +24,7 @@ const STATUS_COLS: { key: TaskStatus; label: string; color: string }[] = [
   { key: 'QUA_HAN',     label: 'Quá hạn',     color: 'bg-orange-50 text-orange-700' },
 ];
 
-const PRIORITY_COLORS: Record<TaskPriority, string> = {
-  LOW:    'bg-gray-100 text-gray-600',
-  NORMAL: 'bg-blue-50 text-blue-700',
-  HIGH:   'bg-amber-50 text-amber-700',
-  URGENT: 'bg-red-50 text-red-700',
-};
 
-const PRIORITY_LABELS: Record<TaskPriority, string> = {
-  LOW: 'Thấp', NORMAL: 'Bình thường', HIGH: 'Cao', URGENT: 'Khẩn',
-};
 
 export default function TasksPage() {
   const { user } = useAuth();
@@ -171,12 +163,14 @@ export default function TasksPage() {
                       }}
                       onDragEnd={() => setDragOverCol(null)}
                       onClick={() => setSelectedTask(task)}
-                      className="bg-white border border-gray-200 rounded-lg p-3.5 cursor-grab active:cursor-grabbing hover:border-indigo-300 hover:shadow-sm transition-all select-none"
+                      className={`rounded-lg p-3.5 cursor-grab active:cursor-grabbing hover:shadow-md transition-all select-none ${
+                        TASK_PRIORITY_META[task.priority]?.card ?? ''
+                      } ${task.status === 'QUA_HAN' ? 'ring-1 ring-orange-300/60' : ''}`}
                     >
                       <p className="text-sm font-medium text-gray-900 mb-2">{task.title}</p>
                       <div className="flex items-center justify-between">
-                        <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded ${PRIORITY_COLORS[task.priority]}`}>
-                          {PRIORITY_LABELS[task.priority]}
+                        <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded ${TASK_PRIORITY_META[task.priority]?.color}`}>
+                          {TASK_PRIORITY_META[task.priority]?.label}
                         </span>
                         {task.dueDate && (
                           <span className="text-[11px] text-gray-400">
