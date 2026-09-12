@@ -5,10 +5,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/page-header';
 import { useAuth } from '@/contexts/auth-context';
 import api from '@/lib/api';
-import { LeaveRequest, LeaveType, LeaveBalance } from '@/types';
-import { Plus, CalendarOff, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { LeaveRequest, LeaveType, LeaveBalance, User } from '@/types';
+import { Plus, CalendarOff, Check, X as XIcon, Download, Ban } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { SearchSelect } from '@/components/ui/search-select';
+import { exportToExcel, stampedFileName } from '@/lib/export-excel';
 
 const STATUS_MAP = {
   PENDING:   { label: 'Chờ duyệt', cls: 'bg-amber-50 text-amber-700' },
@@ -22,6 +24,8 @@ export default function LeavePage() {
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [activeTab, setActiveTab] = useState<'my' | 'all'>('my');
+  const [filterUserId, setFilterUserId] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
   const isManager = user?.role === 'GIAM_DOC' || user?.role === 'QUAN_LY';
   const canReview = user?.role === 'GIAM_DOC';
 
@@ -57,6 +61,13 @@ export default function LeavePage() {
     qc.invalidateQueries({ queryKey: ['my-balance'] });
   };
 
+  // Danh sách nhân viên cho ô lọc ở tab "Tất cả đơn".
+  const { data: staff = [] } = useQuery<User[]>({
+    queryKey: ['users'],
+    queryFn: () => api.get('/users').then(r => r.data),
+    enabled: isManager,
+  });
+
   const createReq = useMutation({
     mutationFn: (data: any) => api.post('/leave/requests', data),
     onSuccess: () => {
@@ -90,8 +101,39 @@ export default function LeavePage() {
     ? +(monthlyBalance.entitledDays) - +(monthlyBalance.usedDays) - +(monthlyBalance.pendingDays)
     : 4;
 
-  const displayReqs = isManager && activeTab === 'all' ? allRequests : myRequests;
+  const baseReqs = isManager && activeTab === 'all' ? allRequests : myRequests;
+  const displayReqs = baseReqs.filter((r: LeaveRequest) => {
+    if (activeTab === 'all' && filterUserId && (r as any).user?.id !== filterUserId) return false;
+    if (filterStatus && r.status !== filterStatus) return false;
+    return true;
+  });
   const pendingCount = allRequests.filter((r: LeaveRequest) => r.status === 'PENDING').length;
+
+  const staffOptions = staff.map(u => ({
+    value: u.id,
+    label: u.fullName,
+    hint: [u.employeeCode, u.department?.name].filter(Boolean).join(' · '),
+  }));
+
+  const exportReqs = () => exportToExcel(
+    displayReqs as any[],
+    [
+      ...(activeTab === 'all' ? [
+        { header: 'Mã NV', value: (r: any) => r.user?.employeeCode ?? '', width: 10 },
+        { header: 'Nhân viên', value: (r: any) => r.user?.fullName ?? '', width: 22 },
+        { header: 'Bộ phận', value: (r: any) => r.user?.department?.name ?? '', width: 18 },
+      ] : []),
+      { header: 'Loại phép', value: (r: any) => r.leaveType?.name ?? '', width: 18 },
+      { header: 'Từ ngày', value: (r: any) => r.startDate, width: 12 },
+      { header: 'Đến ngày', value: (r: any) => r.endDate, width: 12 },
+      { header: 'Số ngày', value: (r: any) => Number(r.totalDays) || 0, width: 9 },
+      { header: 'Lý do', value: (r: any) => r.reason ?? '', width: 34 },
+      { header: 'Trạng thái', value: (r: any) => STATUS_MAP[r.status as keyof typeof STATUS_MAP]?.label || r.status, width: 12 },
+      { header: 'Ghi chú duyệt', value: (r: any) => r.reviewNote ?? '', width: 28 },
+    ],
+    stampedFileName(activeTab === 'all' ? 'DonNghi_TatCa' : 'DonNghi_CuaToi'),
+    'Đơn nghỉ',
+  );
 
   return (
     <div className="flex flex-col h-full overflow-auto">
@@ -99,16 +141,15 @@ export default function LeavePage() {
         title="Nghỉ tuần"
         description="Quản lý đơn nghỉ tuần"
         actions={
-          <button onClick={() => setShowCreate(true)}
-            className="btn btn-primary">
-            <Plus size={14} /> Đăng ký nghỉ
+          <button onClick={() => setShowCreate(true)} className="btn btn-sm btn-primary">
+            <Plus size={14} /> <span className="hidden sm:inline">Đăng ký nghỉ</span><span className="sm:hidden">Đăng ký</span>
           </button>
         }
       />
 
-      <div className="flex-1 p-6 space-y-5">
+      <div className="flex-1 p-4 sm:p-6 space-y-4 sm:space-y-5">
         {/* Balance cards */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4">
           <div className="surface p-4">
             <p className="text-xs text-gray-500 mb-1">Phép tháng này</p>
             <p className="text-2xl font-semibold text-gray-900">{remaining.toFixed(1)}</p>
@@ -145,9 +186,32 @@ export default function LeavePage() {
           </div>
         )}
 
+        {/* Thanh lọc + xuất file */}
+        <div className="flex flex-wrap items-center gap-2">
+          {isManager && activeTab === 'all' && (
+            <SearchSelect
+              options={staffOptions}
+              value={filterUserId}
+              onChange={setFilterUserId}
+              placeholder="Tất cả nhân viên"
+              allLabel="Tất cả nhân viên"
+              className="w-44"
+            />
+          )}
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+            className="field field-sm w-auto">
+            <option value="">Mọi trạng thái</option>
+            {Object.entries(STATUS_MAP).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+          <span className="text-xs text-gray-400">{displayReqs.length} đơn</span>
+          <button onClick={exportReqs} className="btn btn-sm btn-secondary ml-auto" title="Xuất file Excel">
+            <Download size={13} /> Excel
+          </button>
+        </div>
+
         {/* Request list */}
-        <div className="surface overflow-hidden">
-          <table className="w-full">
+        <div className="surface overflow-hidden overflow-x-auto">
+          <table className="w-full min-w-[640px]">
             <thead>
               <tr className="bg-gray-50">
                 {isManager && activeTab === 'all' && (
@@ -158,7 +222,7 @@ export default function LeavePage() {
                 <th className="text-xs font-medium text-gray-500 px-4 py-2.5 text-left">Đến ngày</th>
                 <th className="text-xs font-medium text-gray-500 px-4 py-2.5 text-left">Số ngày</th>
                 <th className="text-xs font-medium text-gray-500 px-4 py-2.5 text-left">Trạng thái</th>
-                <th className="text-xs font-medium text-gray-500 px-4 py-2.5 text-left">Thao tác</th>
+                <th className="text-xs font-medium text-gray-500 px-4 py-2.5 text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -177,23 +241,26 @@ export default function LeavePage() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-end gap-1">
                       {canReview && activeTab === 'all' && req.status === 'PENDING' && (
                         <>
                           <button onClick={() => reviewReq.mutate({ id: req.id, status: 'APPROVED' })}
-                            className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded hover:bg-green-200">
-                            Duyệt
+                            title="Duyệt đơn" aria-label={`Duyệt đơn nghỉ của ${(req as any).user?.fullName || 'nhân viên'}`}
+                            className="icon-btn text-green-600 hover:bg-green-50 hover:text-green-700">
+                            <Check size={16} />
                           </button>
                           <button onClick={() => reviewReq.mutate({ id: req.id, status: 'REJECTED' })}
-                            className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded hover:bg-red-200">
-                            Từ chối
+                            title="Từ chối đơn" aria-label={`Từ chối đơn nghỉ của ${(req as any).user?.fullName || 'nhân viên'}`}
+                            className="icon-btn text-red-500 hover:bg-red-50 hover:text-red-600">
+                            <XIcon size={16} />
                           </button>
                         </>
                       )}
                       {activeTab === 'my' && req.status === 'PENDING' && (
                         <button onClick={() => cancelReq.mutate(req.id)}
-                          className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded hover:bg-gray-200">
-                          Hủy
+                          title="Hủy đơn" aria-label="Hủy đơn nghỉ của tôi"
+                          className="icon-btn hover:bg-gray-100 hover:text-gray-700">
+                          <Ban size={15} />
                         </button>
                       )}
                     </div>

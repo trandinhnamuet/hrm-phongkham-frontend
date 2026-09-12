@@ -79,7 +79,7 @@ export default function UsersPage() {
         }
       />
 
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-4 sm:p-6">
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-2 mb-4">
           <div className="relative">
@@ -127,8 +127,8 @@ export default function UsersPage() {
         </div>
 
         {/* Table */}
-        <div className="surface overflow-hidden">
-          <table className="w-full">
+        <div className="surface overflow-hidden overflow-x-auto">
+          <table className="w-full min-w-[860px]">
             <thead>
               <tr className="bg-gray-50">
                 <th className="text-xs font-medium text-gray-500 px-4 py-3 text-left">Mã NV</th>

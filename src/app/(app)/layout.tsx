@@ -8,6 +8,8 @@ import { cn } from '@/lib/utils';
 import { Sidebar } from '@/components/layout/sidebar';
 import { useAuth } from '@/contexts/auth-context';
 import { SidebarProvider, useSidebar } from '@/contexts/sidebar-context';
+import { BottomNav } from '@/components/layout/bottom-nav';
+import { InstallButton } from '@/components/pwa/install-button';
 
 function MobileTopBar() {
   const { toggle } = useSidebar();
@@ -26,6 +28,9 @@ function MobileTopBar() {
         </div>
         <span className="text-sm font-semibold text-gray-900">HRM Phòng Khám</span>
       </Link>
+      <div className="ml-auto">
+        <InstallButton />
+      </div>
     </div>
   );
 }
@@ -56,11 +61,14 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
       <Sidebar />
       <main className={cn(
         'flex-1 flex flex-col overflow-hidden transition-all duration-200',
+        // Chừa chỗ cho thanh điều hướng dưới, nếu không nó che mất nội dung cuối trang.
+        'pb-14 lg:pb-0',
         isCollapsed ? 'lg:ml-16' : 'lg:ml-60',
       )}>
         <MobileTopBar />
         {children}
       </main>
+      <BottomNav />
     </div>
   );
 }

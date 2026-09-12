@@ -45,7 +45,7 @@ export default function SettingsPage() {
     <div className="flex flex-col h-full overflow-auto">
       <PageHeader title="Cài đặt hệ thống" description="Cấu hình phòng khám" />
 
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-4 sm:p-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
           {cards.map(({ id, icon: Icon, label, desc }) => (
             <button
@@ -500,7 +500,7 @@ function ShiftFields({ value, onChange }: { value: any; onChange: (v: any) => vo
             className="field field-sm" />
         </div>
       </div>
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {([['startTime', 'Bắt đầu', 'time'], ['endTime', 'Kết thúc', 'time'], ['breakMinutes', 'Nghỉ (ph)', 'number'], ['graceMinutes', 'Gia hạn (ph)', 'number']] as [string, string, string][]).map(([key, label, type]) => (
           <div key={key}>
             <label className="lbl">{label}</label>

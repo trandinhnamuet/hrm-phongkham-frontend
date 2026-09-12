@@ -5,9 +5,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/page-header';
 import { useAuth } from '@/contexts/auth-context';
 import api from '@/lib/api';
-import { AttendanceLog } from '@/types';
-import { LogIn, LogOut, Clock, MapPin, AlertCircle, Users } from 'lucide-react';
+import { AttendanceLog, User } from '@/types';
+import {
+  LogIn, LogOut, Clock, MapPin, AlertCircle, Users,
+  Download, PencilLine, Check, X as XIcon,
+} from 'lucide-react';
 import { toast } from 'sonner';
+import { SearchSelect } from '@/components/ui/search-select';
+import { exportToExcel, stampedFileName } from '@/lib/export-excel';
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   PRESENT:     { label: 'Có mặt',   cls: 'bg-green-50 text-green-700' },
@@ -37,7 +42,7 @@ export default function AttendancePage() {
   const [showAdjust, setShowAdjust] = useState(false);
   const [adjustLog, setAdjustLog] = useState<AttendanceLog | null>(null);
   const [adjustForm, setAdjustForm] = useState({ logId: 0, field: 'CHECK_IN', requestedValue: '', reason: '' });
-  const [searchName, setSearchName] = useState('');
+  const [filterUserId, setFilterUserId] = useState('');
 
   const isDirector = user?.role === 'GIAM_DOC';
   const isManager  = user?.role === 'GIAM_DOC' || user?.role === 'QUAN_LY';
@@ -59,6 +64,13 @@ export default function AttendancePage() {
   const { data: allLogs = [] } = useQuery<AttendanceLog[]>({
     queryKey: ['all-logs', viewYear, viewMonth],
     queryFn: () => api.get('/attendance', { params: { year: viewYear, month: viewMonth } }).then(r => r.data),
+    enabled: isManager,
+  });
+
+  // Lấy danh sách nhân viên cho ô lọc, thay vì gõ tay đúng tên.
+  const { data: staff = [] } = useQuery<User[]>({
+    queryKey: ['users'],
+    queryFn: () => api.get('/users').then(r => r.data),
     enabled: isManager,
   });
 
@@ -113,10 +125,35 @@ export default function AttendancePage() {
   // For director: filter all logs; for others: show own logs
   const displayLogs = isDirector ? allLogs : isManager ? allLogs : myLogs;
 
-  // Director can filter by name
-  const filteredLogs = isDirector && searchName.trim()
-    ? displayLogs.filter((l: any) => l.user?.fullName?.toLowerCase().includes(searchName.toLowerCase()))
+  const filteredLogs = isManager && filterUserId
+    ? displayLogs.filter((l: any) => l.user?.id === filterUserId)
     : displayLogs;
+
+  const staffOptions = staff.map(u => ({
+    value: u.id,
+    label: u.fullName,
+    hint: [u.employeeCode, u.department?.name].filter(Boolean).join(' · '),
+  }));
+
+  const exportLogs = () => exportToExcel(
+    filteredLogs as any[],
+    [
+      { header: 'Ngày', value: (l: any) => l.workDate, width: 12 },
+      ...(isManager ? [
+        { header: 'Mã NV', value: (l: any) => l.user?.employeeCode ?? '', width: 10 },
+        { header: 'Nhân viên', value: (l: any) => l.user?.fullName ?? '', width: 22 },
+        { header: 'Bộ phận', value: (l: any) => l.user?.department?.name ?? '', width: 18 },
+      ] : []),
+      { header: 'Giờ vào', value: (l: any) => fmtTime(l.checkInAt), width: 10 },
+      { header: 'Giờ ra', value: (l: any) => fmtTime(l.checkOutAt), width: 10 },
+      { header: 'Số phút làm', value: (l: any) => l.workedMinutes ?? 0, width: 12 },
+      { header: 'Thời gian làm', value: (l: any) => fmtMins(l.workedMinutes), width: 13 },
+      { header: 'Đi muộn (phút)', value: (l: any) => l.lateMinutes ?? 0, width: 14 },
+      { header: 'Trạng thái', value: (l: any) => STATUS_MAP[l.status]?.label || l.status, width: 14 },
+    ],
+    stampedFileName(`ChamCong_T${viewMonth}-${viewYear}`),
+    `Chấm công T${viewMonth}-${viewYear}`,
+  );
 
   // Today summary stats for director
   const todayStr = now.toISOString().split('T')[0];
@@ -132,11 +169,11 @@ export default function AttendancePage() {
         description={isDirector ? 'Theo dõi chấm công toàn công ty' : 'Quản lý giờ làm việc'}
       />
 
-      <div className="flex-1 p-6 space-y-5">
+      <div className="flex-1 p-4 sm:p-6 space-y-4 sm:space-y-5">
 
         {/* ── Director: today's summary ── */}
         {isDirector && (
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
             <div className="surface p-4">
               <p className="text-xs text-gray-500 mb-1">Có mặt hôm nay</p>
               <p className="text-2xl font-semibold text-green-600">{presentCount}</p>
@@ -181,22 +218,22 @@ export default function AttendancePage() {
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <button
                 onClick={doCheckIn}
                 disabled={!!today?.checkInAt || gpsLoading === 'in'}
-                className="flex items-center gap-2 h-9 px-4 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                className="btn flex-1 sm:flex-none bg-green-600 text-white shadow-sm hover:bg-green-700 active:bg-green-800">
                 <LogIn size={15} />
                 {gpsLoading === 'in' ? 'Đang định vị...' : 'Chấm vào'}
               </button>
               <button
                 onClick={doCheckOut}
                 disabled={!today?.checkInAt || !!today?.checkOutAt || gpsLoading === 'out'}
-                className="flex items-center gap-2 h-9 px-4 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                className="btn flex-1 sm:flex-none bg-red-600 text-white shadow-sm hover:bg-red-700 active:bg-red-800">
                 <LogOut size={15} />
                 {gpsLoading === 'out' ? 'Đang định vị...' : 'Chấm ra'}
               </button>
-              <div className="flex items-center gap-1 text-xs text-gray-400 ml-1">
+              <div className="flex items-center gap-1 text-xs text-gray-400 w-full sm:w-auto sm:ml-1">
                 <MapPin size={12} />
                 GPS bắt buộc
               </div>
@@ -220,11 +257,13 @@ export default function AttendancePage() {
                       {adj.field === 'CHECK_IN' ? 'Giờ vào' : adj.field === 'CHECK_OUT' ? 'Giờ ra' : 'Trạng thái'}: {adj.requestedValue} · {adj.reason}
                     </p>
                   </div>
-                  <div className="flex gap-1.5">
+                  <div className="flex gap-1 flex-shrink-0">
                     <button onClick={() => reviewAdj.mutate({ id: adj.id, status: 'APPROVED' })}
-                      className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200">Duyệt</button>
+                      title="Duyệt" aria-label="Duyệt yêu cầu điều chỉnh"
+                      className="icon-btn text-green-600 hover:bg-green-50 hover:text-green-700"><Check size={16} /></button>
                     <button onClick={() => reviewAdj.mutate({ id: adj.id, status: 'REJECTED' })}
-                      className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200">Từ chối</button>
+                      title="Từ chối" aria-label="Từ chối yêu cầu điều chỉnh"
+                      className="icon-btn text-red-500 hover:bg-red-50 hover:text-red-600"><XIcon size={16} /></button>
                   </div>
                 </div>
               ))}
@@ -234,20 +273,23 @@ export default function AttendancePage() {
 
         {/* ── Log table ── */}
         <div className="surface overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 gap-3">
+          <div className="flex flex-wrap items-center justify-between px-4 sm:px-5 py-3 border-b border-gray-100 gap-2">
             <div className="flex items-center gap-2">
               {isDirector && <Users size={14} className="text-gray-400" />}
               <p className="text-sm font-medium text-gray-900">
                 {isDirector ? 'Bảng chấm công toàn công ty' : 'Bảng chấm công'}
               </p>
+              <span className="text-xs text-gray-400">({filteredLogs.length})</span>
             </div>
-            <div className="flex items-center gap-2">
-              {isDirector && (
-                <input
-                  value={searchName}
-                  onChange={e => setSearchName(e.target.value)}
-                  placeholder="Tìm nhân viên..."
-                  className="h-7 px-2 text-xs border border-gray-200 rounded-md w-36 outline-none focus:border-indigo-400"
+            <div className="flex flex-wrap items-center gap-2">
+              {isManager && (
+                <SearchSelect
+                  options={staffOptions}
+                  value={filterUserId}
+                  onChange={setFilterUserId}
+                  placeholder="Tất cả nhân viên"
+                  allLabel="Tất cả nhân viên"
+                  className="w-44"
                 />
               )}
               <select value={viewMonth} onChange={e => setViewMonth(+e.target.value)}
@@ -259,6 +301,9 @@ export default function AttendancePage() {
                 className="field field-sm w-auto">
                 {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
               </select>
+              <button onClick={exportLogs} className="btn btn-sm btn-secondary" title="Xuất file Excel">
+                <Download size={13} /> Excel
+              </button>
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -271,7 +316,7 @@ export default function AttendancePage() {
                 <th className="text-xs font-medium text-gray-500 px-4 py-2.5">Ra</th>
                 <th className="text-xs font-medium text-gray-500 px-4 py-2.5">Làm việc</th>
                 <th className="text-xs font-medium text-gray-500 px-4 py-2.5">Trạng thái</th>
-                {isDirector && <th className="text-xs font-medium text-gray-500 px-4 py-2.5"></th>}
+                {isDirector && <th className="text-xs font-medium text-gray-500 px-4 py-2.5 text-right">Thao tác</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -288,13 +333,19 @@ export default function AttendancePage() {
                     </span>
                   </td>
                   {isDirector && (
-                    <td className="px-4 py-3">
-                      <button onClick={() => {
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => {
                           setAdjustLog(log);
                           setAdjustForm({ logId: log.id, field: 'CHECK_IN', requestedValue: toDatetimeLocal(log.checkInAt), reason: '' });
                           setShowAdjust(true);
                         }}
-                        className="text-xs text-indigo-600 hover:underline">Điều chỉnh</button>
+                        title="Điều chỉnh chấm công"
+                        aria-label={`Điều chỉnh chấm công ngày ${log.workDate}`}
+                        className="icon-btn hover:text-indigo-600 hover:bg-indigo-50"
+                      >
+                        <PencilLine size={15} />
+                      </button>
                     </td>
                   )}
                 </tr>

@@ -120,7 +120,7 @@ export default function TasksPage() {
       </div>
 
       {/* Kanban board */}
-      <div className="flex-1 overflow-x-auto p-4 sm:p-6">
+      <div className="flex-1 overflow-x-auto p-3 sm:p-6">
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <div className="w-6 h-6 border-2 border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
