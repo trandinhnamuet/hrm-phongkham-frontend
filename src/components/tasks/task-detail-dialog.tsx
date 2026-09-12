@@ -254,9 +254,30 @@ export function TaskDetailDialog({
   }, [assigneeSavedAt]);
 
   const reviewTask = useMutation({
-    mutationFn: (d: { decision: 'ACCEPTED' | 'RETURNED'; note?: string }) =>
-      api.patch(`/tasks/${taskId}/review`, d),
-    onSuccess: (_res, vars) => {
+    mutationFn: (d: { decision: 'ACCEPTED' | 'RETURNED'; note?: string }) => {
+      // Huỷ lần tự lưu đang chờ: nó mang status cũ, bắn sau sẽ ghi đè kết quả đánh giá.
+      if (autoTimer.current) { clearTimeout(autoTimer.current); autoTimer.current = null; }
+      return api.patch(`/tasks/${taskId}/review`, d);
+    },
+    onSuccess: (res, vars) => {
+      // Đồng bộ form theo trạng thái server vừa đặt. Trả lại thì server đưa việc
+      // về Cần làm, nếu form vẫn giữ Hoàn thành thì lần tự lưu hoặc lúc đóng hộp
+      // thoại sẽ PATCH ngược lại, đẩy việc quay về cột Hoàn thành.
+      const fresh = (res as any)?.data;
+      if (fresh?.status) {
+        setEditForm(f => (f ? { ...f, status: fresh.status } : f));
+        // Trộn thẳng vào cache để taskDetail khớp ngay, không chờ refetch. Chỉ
+        // lấy các field của đánh giá: response này không kèm comments/createdBy,
+        // ghi đè cả object sẽ làm mất phần thảo luận đang hiển thị.
+        qc.setQueryData(['task', taskId], (old: any) => (old ? {
+          ...old,
+          status: fresh.status,
+          completedAt: fresh.completedAt ?? null,
+          reviewStatus: fresh.reviewStatus,
+          reviewNote: fresh.reviewNote,
+          reviewedAt: fresh.reviewedAt,
+        } : old));
+      }
       qc.invalidateQueries({ queryKey: ['task', taskId] });
       qc.invalidateQueries({ queryKey: ['task-history', taskId] });
       onChanged?.();
@@ -306,7 +327,7 @@ export function TaskDetailDialog({
   /* Tự lưu sau khi ngừng chỉnh 900ms. Tiêu đề trống thì không lưu (backend sẽ
      từ chối), chờ người dùng gõ lại. */
   useEffect(() => {
-    if (!dirty || titleEmpty) return;
+    if (!dirty || titleEmpty || reviewTask.isPending) return;
     if (autoTimer.current) clearTimeout(autoTimer.current);
     autoTimer.current = setTimeout(() => {
       autoTimer.current = null;
@@ -320,6 +341,7 @@ export function TaskDetailDialog({
   // Đóng hộp thoại khi còn thay đổi treo thì lưu luôn, không để mất.
   const flushFields = () => {
     if (autoTimer.current) { clearTimeout(autoTimer.current); autoTimer.current = null; }
+    if (reviewTask.isPending) return;
     const data = buildChanges();
     if (data) updateTask.mutate(data);
   };
