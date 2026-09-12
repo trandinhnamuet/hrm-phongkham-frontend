@@ -12,6 +12,8 @@ export interface BoardColumn {
   key: TaskStatus;
   label: string;
   color: string;
+  /** Nền của cả cột, phân biệt trạng thái khi vuốt. */
+  bg?: string;
 }
 
 interface Props {
@@ -109,7 +111,7 @@ export function MobileBoard({ columns, tasks, loading, onOpen, onMove, canMoveTo
           className="flex-1 min-h-0 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory no-scrollbar"
         >
           {grouped.map(col => (
-            <div key={col.key} className="w-full min-w-full flex-shrink-0 snap-start overflow-y-auto p-3 space-y-2">
+            <div key={col.key} className={cn('w-full min-w-full flex-shrink-0 snap-start overflow-y-auto p-3 space-y-2', col.bg)}>
               {col.tasks.length === 0 && (
                 <div className="py-16 text-center">
                   <p className="text-sm text-gray-400">Không có việc nào ở “{col.label}”</p>
@@ -122,9 +124,8 @@ export function MobileBoard({ columns, tasks, loading, onOpen, onMove, canMoveTo
                   <div
                     key={task.id}
                     className={cn(
-                      'rounded-xl shadow-sm p-3.5 transition-colors',
-                      pr?.card,
-                      task.status === 'QUA_HAN' && 'ring-1 ring-orange-300/60',
+                      'surface p-3.5 transition-colors',
+                      task.status === 'QUA_HAN' && 'border-orange-200',
                     )}
                   >
                     <button onClick={() => onOpen(task)} className="w-full text-left">

@@ -53,6 +53,19 @@ export interface Task {
   updatedAt: string;
 }
 
+export type NotificationType = 'TASK_ASSIGNED' | 'TASK_COMMENT' | 'TASK_REVIEWED' | 'LEAVE_REVIEWED';
+
+export interface AppNotification {
+  id: number;
+  type: NotificationType;
+  title: string;
+  body?: string | null;
+  link?: string | null;
+  actor?: User | null;
+  isRead: boolean;
+  createdAt: string;
+}
+
 export interface TaskHistory {
   id: number;
   taskId: number;

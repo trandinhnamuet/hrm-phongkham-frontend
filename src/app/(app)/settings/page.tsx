@@ -46,12 +46,14 @@ export default function SettingsPage() {
       <PageHeader title="Cài đặt hệ thống" description="Cấu hình phòng khám" />
 
       <div className="flex-1 p-4 sm:p-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+        <div className="max-w-3xl mx-auto">
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Danh mục cấu hình</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {cards.map(({ id, icon: Icon, label, desc }) => (
             <button
               key={id}
               onClick={() => setOpen(id)}
-              className="flex items-center gap-4 bg-white border border-gray-200 rounded-xl px-5 py-4 text-left hover:border-indigo-300 hover:shadow-sm transition-all group"
+              className="surface flex items-center gap-4 px-5 py-5 text-left hover:border-indigo-300 hover:shadow-md transition-all group"
             >
               <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-100 transition-colors">
                 <Icon size={18} className="text-indigo-500" />
@@ -63,6 +65,7 @@ export default function SettingsPage() {
               <ChevronRight size={16} className="text-gray-300 group-hover:text-indigo-400 transition-colors flex-shrink-0" />
             </button>
           ))}
+        </div>
         </div>
       </div>
 
@@ -149,7 +152,7 @@ function ClinicForm({ qc, onClose }: { qc: any; onClose: () => void }) {
           <input type="number" min={10} max={1000} value={form.gpsRadiusM} onChange={e => setForm(f => ({ ...f, gpsRadiusM: +e.target.value }))}
             className="field" />
         </div>
-        <button onClick={detectGps} className="h-9 px-3 text-sm text-indigo-600 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 rounded-md whitespace-nowrap">
+        <button onClick={detectGps} className="btn btn-secondary text-indigo-600 border-indigo-200 hover:bg-indigo-50">
           📍 Lấy GPS
         </button>
       </div>

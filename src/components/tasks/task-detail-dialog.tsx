@@ -23,34 +23,11 @@ export const TASK_STATUS_META: Record<TaskStatus, { label: string; color: string
   QUA_HAN:     { label: 'Quá hạn',    color: 'bg-orange-50 text-orange-700' },
 };
 
-export const TASK_PRIORITY_META: Record<TaskPriority, {
-  label: string;
-  /** Màu của nhãn nhỏ hiện tên mức ưu tiên. */
-  color: string;
-  /**
-   * Màu nền + viền của cả thẻ công việc, để nhìn lướt bảng là thấy việc nào gấp.
-   * Gồm luôn bg và border nên nơi dùng KHÔNG đặt thêm bg-white / border-gray-200:
-   * hai lớp tiện ích cùng nhóm thì thứ tự thắng thua do Tailwind sắp, không theo
-   * thứ tự viết trong className.
-   */
-  card: string;
-}> = {
-  LOW: {
-    label: 'Thấp', color: 'bg-gray-100 text-gray-600',
-    card: 'bg-white border border-gray-200 border-l-4 border-l-gray-300',
-  },
-  NORMAL: {
-    label: 'Bình thường', color: 'bg-blue-50 text-blue-700',
-    card: 'bg-white border border-gray-200 border-l-4 border-l-blue-400',
-  },
-  HIGH: {
-    label: 'Cao', color: 'bg-amber-50 text-amber-700',
-    card: 'bg-amber-50/50 border border-amber-200/70 border-l-4 border-l-amber-400',
-  },
-  URGENT: {
-    label: 'Khẩn', color: 'bg-red-50 text-red-700',
-    card: 'bg-red-50/50 border border-red-200/70 border-l-4 border-l-red-500',
-  },
+export const TASK_PRIORITY_META: Record<TaskPriority, { label: string; color: string }> = {
+  LOW:    { label: 'Thấp',        color: 'bg-gray-100 text-gray-600' },
+  NORMAL: { label: 'Bình thường', color: 'bg-blue-50 text-blue-700' },
+  HIGH:   { label: 'Cao',         color: 'bg-amber-50 text-amber-700' },
+  URGENT: { label: 'Khẩn',        color: 'bg-red-50 text-red-700' },
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -179,17 +156,26 @@ export function TaskDetailDialog({
     if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; }
   }, [editForm?.title]);
 
+  // Tự lưu: không đóng hộp thoại, không toast mỗi lần — chỉ báo nhỏ cạnh nút Lưu.
+  const [fieldsSavedAt, setFieldsSavedAt] = useState<number | null>(null);
+  const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const updateTask = useMutation({
     mutationFn: (data: any) => api.patch(`/tasks/${taskId}`, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task', taskId] });
       qc.invalidateQueries({ queryKey: ['task-history', taskId] });
       onChanged?.();
-      onClose();
-      toast.success('Đã lưu thay đổi');
+      setFieldsSavedAt(Date.now());
     },
     onError: (e: any) => toast.error(e.response?.data?.message || 'Không thể lưu'),
   });
+
+  useEffect(() => {
+    if (!fieldsSavedAt) return;
+    const t = setTimeout(() => setFieldsSavedAt(null), 2500);
+    return () => clearTimeout(t);
+  }, [fieldsSavedAt]);
 
   const deleteTask = useMutation({
     mutationFn: () => api.delete(`/tasks/${taskId}`),
@@ -298,19 +284,48 @@ export function TaskDetailDialog({
 
   const titleEmpty = !editForm?.title.trim();
 
-  const handleSave = () => {
-    if (!editForm || !taskDetail || titleEmpty) return;
+  const buildChanges = (): Record<string, any> | null => {
+    if (!editForm || !taskDetail || titleEmpty) return null;
     const data: Record<string, any> = {};
     if (editForm.title !== taskDetail.title) data.title = editForm.title.trim();
     if (editForm.description !== (taskDetail.description || '')) data.description = editForm.description;
     if (editForm.status !== taskDetail.status) data.status = editForm.status;
     if (editForm.priority !== taskDetail.priority) data.priority = editForm.priority;
     if (editForm.dueDate !== toDateInput(taskDetail.dueDate)) data.dueDate = editForm.dueDate;
-    updateTask.mutate(data);
+    return Object.keys(data).length ? data : null;
+  };
+
+  /** Nút Lưu: lưu ngay, có toast. */
+  const handleSave = () => {
+    if (autoTimer.current) { clearTimeout(autoTimer.current); autoTimer.current = null; }
+    const data = buildChanges();
+    if (!data) return;
+    updateTask.mutateAsync(data).then(() => toast.success('Đã lưu thay đổi')).catch(() => {});
+  };
+
+  /* Tự lưu sau khi ngừng chỉnh 900ms. Tiêu đề trống thì không lưu (backend sẽ
+     từ chối), chờ người dùng gõ lại. */
+  useEffect(() => {
+    if (!dirty || titleEmpty) return;
+    if (autoTimer.current) clearTimeout(autoTimer.current);
+    autoTimer.current = setTimeout(() => {
+      autoTimer.current = null;
+      const data = buildChanges();
+      if (data) updateTask.mutate(data);
+    }, 900);
+    return () => { if (autoTimer.current) clearTimeout(autoTimer.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editForm?.title, editForm?.description, editForm?.status, editForm?.priority, editForm?.dueDate]);
+
+  // Đóng hộp thoại khi còn thay đổi treo thì lưu luôn, không để mất.
+  const flushFields = () => {
+    if (autoTimer.current) { clearTimeout(autoTimer.current); autoTimer.current = null; }
+    const data = buildChanges();
+    if (data) updateTask.mutate(data);
   };
 
   return (
-    <Dialog open={!!taskId} onOpenChange={o => { if (!o) { onClose(); setShowDeleteConfirm(false); } }}>
+    <Dialog open={!!taskId} onOpenChange={o => { if (!o) { flushFields(); onClose(); setShowDeleteConfirm(false); } }}>
       <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden gap-0">
         {taskDetail && editForm && (
           <>
@@ -562,13 +577,15 @@ export function TaskDetailDialog({
                 Tạo bởi {taskDetail.createdBy?.fullName} · {new Date(taskDetail.createdAt).toLocaleDateString('vi-VN')}
               </p>
               <div className="flex items-center gap-2 flex-shrink-0">
-                {dirty && (
-                  <button onClick={handleSave} disabled={updateTask.isPending || titleEmpty}
-                    className="flex items-center gap-1.5 h-7 px-3 text-xs text-white bg-indigo-500 rounded-md hover:bg-indigo-600 disabled:opacity-50">
-                    <Save size={11} />
-                    {updateTask.isPending ? 'Đang lưu...' : 'Lưu thay đổi'}
-                  </button>
-                )}
+                <span className="hidden sm:inline text-[11px] text-gray-400">
+                  {updateTask.isPending ? 'Đang lưu…' : fieldsSavedAt && !dirty ? 'Đã lưu' : dirty ? 'Chưa lưu' : 'Tự lưu khi ngừng gõ'}
+                </span>
+                <button onClick={handleSave} disabled={!dirty || updateTask.isPending || titleEmpty}
+                  title={dirty ? 'Lưu ngay' : 'Mọi thay đổi đã được lưu'}
+                  className="btn btn-sm btn-primary">
+                  <Save size={12} />
+                  {updateTask.isPending ? 'Đang lưu...' : 'Lưu'}
+                </button>
 
                 {canDelete && (
                   showDeleteConfirm ? (

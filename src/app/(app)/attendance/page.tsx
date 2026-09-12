@@ -8,10 +8,11 @@ import api from '@/lib/api';
 import { AttendanceLog, User } from '@/types';
 import {
   LogIn, LogOut, Clock, MapPin, AlertCircle, Users,
-  Download, PencilLine, Check, X as XIcon,
+  Download, PencilLine, Check, X as XIcon, List, LayoutGrid,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SearchSelect } from '@/components/ui/search-select';
+import { MonthGrid } from '@/components/month-grid';
 import { exportToExcel, stampedFileName } from '@/lib/export-excel';
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
@@ -43,6 +44,7 @@ export default function AttendancePage() {
   const [adjustLog, setAdjustLog] = useState<AttendanceLog | null>(null);
   const [adjustForm, setAdjustForm] = useState({ logId: 0, field: 'CHECK_IN', requestedValue: '', reason: '' });
   const [filterUserId, setFilterUserId] = useState('');
+  const [view, setView] = useState<'list' | 'grid'>('list');
 
   const isDirector = user?.role === 'GIAM_DOC';
   const isManager  = user?.role === 'GIAM_DOC' || user?.role === 'QUAN_LY';
@@ -134,6 +136,29 @@ export default function AttendancePage() {
     label: u.fullName,
     hint: [u.employeeCode, u.department?.name].filter(Boolean).join(' · '),
   }));
+
+  // Lưới tháng: dòng = nhân viên, ô = trạng thái ngày đó
+  const GRID_CELL: Record<string, { label: string; cls: string }> = {
+    PRESENT:     { label: '✓', cls: 'bg-green-100 text-green-700' },
+    LATE:        { label: 'M', cls: 'bg-amber-100 text-amber-700' },
+    ABSENT:      { label: 'V', cls: 'bg-red-100 text-red-700' },
+    ON_LEAVE:    { label: 'P', cls: 'bg-indigo-100 text-indigo-700' },
+    HOLIDAY:     { label: 'L', cls: 'bg-violet-100 text-violet-700' },
+    SHORT_HOURS: { label: 'T', cls: 'bg-orange-100 text-orange-700' },
+  };
+  const gridRows = (isManager
+    ? staff.filter(u => u.status === 'ACTIVE' && (!filterUserId || u.id === filterUserId))
+    : (user ? [user] : [])
+  ).map(u => ({ id: u.id, name: u.fullName, sub: (u as any).department?.name || u.employeeCode }));
+  const logIndex = new Map<string, any>();
+  (displayLogs as any[]).forEach(l => logIndex.set(`${l.userId || l.user?.id}|${l.workDate}`, l));
+  const gridCell = (uid: string, date: string) => {
+    const l = logIndex.get(`${uid}|${date}`);
+    if (!l) return null;
+    const m = GRID_CELL[l.status] || { label: '•', cls: 'bg-gray-100 text-gray-600' };
+    return { ...m, title: `${date} · ${STATUS_MAP[l.status]?.label || l.status} · vào ${fmtTime(l.checkInAt)} ra ${fmtTime(l.checkOutAt)}` };
+  };
+  const gridLegend = Object.entries(GRID_CELL).map(([k, v]) => ({ label: `${v.label} ${STATUS_MAP[k]?.label || k}`, cls: v.cls }));
 
   const exportLogs = () => exportToExcel(
     filteredLogs as any[],
@@ -301,11 +326,27 @@ export default function AttendancePage() {
                 className="field field-sm w-auto">
                 {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
               </select>
+              <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
+                <button onClick={() => setView('list')} title="Dạng danh sách"
+                  className={`h-9 sm:h-8 px-2.5 flex items-center gap-1 text-xs ${view === 'list' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                  <List size={13} /> <span className="hidden sm:inline">Danh sách</span>
+                </button>
+                <button onClick={() => setView('grid')} title="Dạng lưới theo ngày"
+                  className={`h-9 sm:h-8 px-2.5 flex items-center gap-1 text-xs border-l border-gray-300 ${view === 'grid' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                  <LayoutGrid size={13} /> <span className="hidden sm:inline">Lưới tháng</span>
+                </button>
+              </div>
               <button onClick={exportLogs} className="btn btn-sm btn-secondary" title="Xuất file Excel">
                 <Download size={13} /> Excel
               </button>
             </div>
           </div>
+          {view === 'grid' ? (
+            <div className="p-3">
+              <MonthGrid year={viewYear} month={viewMonth} rows={gridRows} cell={gridCell} legend={gridLegend}
+                emptyText="Không có nhân viên nào" />
+            </div>
+          ) : (<>
           {/* Mobile: thẻ thay bảng */}
           <div className="md:hidden divide-y divide-gray-100">
             {filteredLogs.length === 0 && (
@@ -403,6 +444,7 @@ export default function AttendancePage() {
             </tbody>
           </table>
           </div>
+          </>)}
         </div>
       </div>
 

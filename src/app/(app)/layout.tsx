@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { SidebarProvider, useSidebar } from '@/contexts/sidebar-context';
 import { BottomNav } from '@/components/layout/bottom-nav';
 import { InstallButton } from '@/components/pwa/install-button';
+import { NotificationBell } from '@/components/notifications/notification-bell';
 
 function MobileTopBar() {
   const { toggle } = useSidebar();
@@ -28,8 +29,9 @@ function MobileTopBar() {
         </div>
         <span className="text-sm font-semibold text-gray-900">HRM Phòng Khám</span>
       </Link>
-      <div className="ml-auto">
+      <div className="ml-auto flex items-center gap-1">
         <InstallButton />
+        <NotificationBell />
       </div>
     </div>
   );

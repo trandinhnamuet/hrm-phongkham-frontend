@@ -6,10 +6,11 @@ import { PageHeader } from '@/components/layout/page-header';
 import { useAuth } from '@/contexts/auth-context';
 import api from '@/lib/api';
 import { LeaveRequest, LeaveType, LeaveBalance, User } from '@/types';
-import { Plus, CalendarOff, Check, X as XIcon, Download, Ban } from 'lucide-react';
+import { Plus, CalendarOff, Check, X as XIcon, Download, Ban, List, LayoutGrid } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SearchSelect } from '@/components/ui/search-select';
+import { MonthGrid } from '@/components/month-grid';
 import { exportToExcel, stampedFileName } from '@/lib/export-excel';
 
 const STATUS_MAP = {
@@ -26,6 +27,8 @@ export default function LeavePage() {
   const [activeTab, setActiveTab] = useState<'my' | 'all'>('my');
   const [filterUserId, setFilterUserId] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [view, setView] = useState<'list' | 'grid'>('list');
+  const [gridMonth, setGridMonth] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() + 1 }; });
   const isManager = user?.role === 'GIAM_DOC' || user?.role === 'QUAN_LY';
   const canReview = user?.role === 'GIAM_DOC';
 
@@ -114,6 +117,32 @@ export default function LeavePage() {
     label: u.fullName,
     hint: [u.employeeCode, u.department?.name].filter(Boolean).join(' · '),
   }));
+
+  // Lưới tháng: dòng = nhân viên, ô = ngày có đơn nghỉ (đã duyệt / chờ duyệt)
+  const gridRows = (activeTab === 'all'
+    ? staff.filter(u => u.status === 'ACTIVE' && (!filterUserId || u.id === filterUserId))
+    : (user ? [user] : [])
+  ).map(u => ({ id: u.id, name: u.fullName, sub: (u as any).department?.name || u.employeeCode }));
+  const gridCell = (uid: string, date: string) => {
+    const hit = (displayReqs as any[]).find(r =>
+      (r.user?.id || r.userId) === uid && r.startDate <= date && date <= r.endDate
+      && (r.status === 'APPROVED' || r.status === 'PENDING'));
+    if (!hit) return null;
+    const pending = hit.status === 'PENDING';
+    return {
+      label: pending ? '?' : 'N',
+      cls: pending ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700',
+      title: `${hit.leaveType?.name || 'Nghỉ'} · ${STATUS_MAP[hit.status as keyof typeof STATUS_MAP]?.label} · ${hit.startDate} → ${hit.endDate}`,
+    };
+  };
+  const gridLegend = [
+    { label: 'N Nghỉ đã duyệt', cls: 'bg-indigo-100' },
+    { label: '? Chờ duyệt', cls: 'bg-amber-100' },
+  ];
+  const shiftMonth = (d: number) => setGridMonth(g => {
+    const m = g.m + d;
+    return m < 1 ? { y: g.y - 1, m: 12 } : m > 12 ? { y: g.y + 1, m: 1 } : { y: g.y, m };
+  });
 
   const exportReqs = () => exportToExcel(
     displayReqs as any[],
@@ -204,10 +233,34 @@ export default function LeavePage() {
             {Object.entries(STATUS_MAP).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
           <span className="text-xs text-gray-400">{displayReqs.length} đơn</span>
-          <button onClick={exportReqs} className="btn btn-sm btn-secondary ml-auto" title="Xuất file Excel">
+          <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden ml-auto">
+            <button onClick={() => setView('list')} title="Dạng danh sách"
+              className={`h-9 sm:h-8 px-2.5 flex items-center gap-1 text-xs ${view === 'list' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+              <List size={13} /> <span className="hidden sm:inline">Danh sách</span>
+            </button>
+            <button onClick={() => setView('grid')} title="Dạng lưới theo ngày"
+              className={`h-9 sm:h-8 px-2.5 flex items-center gap-1 text-xs border-l border-gray-300 ${view === 'grid' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+              <LayoutGrid size={13} /> <span className="hidden sm:inline">Lưới tháng</span>
+            </button>
+          </div>
+          <button onClick={exportReqs} className="btn btn-sm btn-secondary" title="Xuất file Excel">
             <Download size={13} /> Excel
           </button>
         </div>
+
+        {view === 'grid' && (
+          <div className="surface p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <button onClick={() => shiftMonth(-1)} className="btn btn-sm btn-secondary">‹ Tháng trước</button>
+              <p className="text-sm font-semibold text-gray-900">Tháng {gridMonth.m}/{gridMonth.y}</p>
+              <button onClick={() => shiftMonth(1)} className="btn btn-sm btn-secondary">Tháng sau ›</button>
+            </div>
+            <MonthGrid year={gridMonth.y} month={gridMonth.m} rows={gridRows} cell={gridCell} legend={gridLegend}
+              emptyText="Không có nhân viên nào" />
+          </div>
+        )}
+
+        {view === 'list' && (<>
 
         {/* Mobile: thẻ thay bảng */}
         <div className="md:hidden space-y-2">
@@ -333,6 +386,7 @@ export default function LeavePage() {
             </tbody>
           </table>
         </div>
+        </>)}
       </div>
 
       {/* Create dialog */}

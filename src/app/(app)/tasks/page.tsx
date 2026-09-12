@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/page-header';
 import { useAuth } from '@/contexts/auth-context';
@@ -15,13 +15,13 @@ import { ReviewBadge } from '@/components/tasks/review-badge';
 import { MobileBoard } from '@/components/tasks/mobile-board';
 import { TASK_PRIORITY_META } from '@/components/tasks/task-detail-dialog';
 
-const STATUS_COLS: { key: TaskStatus; label: string; color: string }[] = [
-  { key: 'TODO',        label: 'Cần làm',     color: 'bg-gray-100 text-gray-700' },
-  { key: 'IN_PROGRESS', label: 'Đang làm',    color: 'bg-blue-50 text-blue-700' },
-  { key: 'DONE',        label: 'Hoàn thành',  color: 'bg-green-50 text-green-700' },
-  { key: 'CANCELLED',   label: 'Đã hủy',      color: 'bg-red-50 text-red-700' },
+const STATUS_COLS: { key: TaskStatus; label: string; color: string; bg: string; accent: string }[] = [
+  { key: 'TODO',        label: 'Cần làm',     color: 'bg-slate-200 text-slate-700',   bg: 'bg-slate-50',     accent: 'border-t-slate-400' },
+  { key: 'IN_PROGRESS', label: 'Đang làm',    color: 'bg-blue-100 text-blue-700',     bg: 'bg-blue-50/70',   accent: 'border-t-blue-500' },
+  { key: 'DONE',        label: 'Hoàn thành',  color: 'bg-green-100 text-green-700',   bg: 'bg-green-50/70',  accent: 'border-t-green-500' },
+  { key: 'CANCELLED',   label: 'Đã hủy',      color: 'bg-red-100 text-red-700',       bg: 'bg-red-50/60',    accent: 'border-t-red-400' },
   // Thiếu cột này thì việc quá hạn không nằm ở đâu, nhân viên không thấy để xử lý.
-  { key: 'QUA_HAN',     label: 'Quá hạn',     color: 'bg-orange-50 text-orange-700' },
+  { key: 'QUA_HAN',     label: 'Quá hạn',     color: 'bg-orange-100 text-orange-700', bg: 'bg-orange-50/70', accent: 'border-t-orange-500' },
 ];
 
 
@@ -31,6 +31,16 @@ export default function TasksPage() {
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  // Mở hộp chi tiết khi tới từ link thông báo (/tasks?task=ID) hoặc sự kiện từ chuông.
+  useEffect(() => {
+    const open = (id: number) => setSelectedTask({ id } as Task);
+    const m = window.location.search.match(/[?&]task=(\d+)/);
+    if (m) open(Number(m[1]));
+    const h = (e: Event) => open((e as CustomEvent<number>).detail);
+    window.addEventListener('hrm:open-task', h);
+    return () => window.removeEventListener('hrm:open-task', h);
+  }, []);
+
   const [filterStatus, setFilterStatus] = useState<string>('');
 
   // Drag-and-drop state
@@ -130,10 +140,10 @@ export default function TasksPage() {
             {grouped.map(col => (
               <div
                 key={col.key}
-                className={`flex-1 flex flex-col min-w-[200px] rounded-xl p-2 transition-colors duration-150 ${
+                className={`flex-1 flex flex-col min-w-[200px] rounded-xl p-2 border border-gray-200 border-t-4 ${col.accent} transition-colors duration-150 ${
                   dragOverCol === col.key
                     ? 'bg-indigo-50 ring-2 ring-inset ring-indigo-300'
-                    : 'bg-gray-50/60'
+                    : col.bg
                 }`}
                 onDragOver={(e) => e.preventDefault()}
                 onDragEnter={() => setDragOverCol(col.key)}
@@ -163,9 +173,9 @@ export default function TasksPage() {
                       }}
                       onDragEnd={() => setDragOverCol(null)}
                       onClick={() => setSelectedTask(task)}
-                      className={`rounded-lg p-3.5 cursor-grab active:cursor-grabbing hover:shadow-md transition-all select-none ${
-                        TASK_PRIORITY_META[task.priority]?.card ?? ''
-                      } ${task.status === 'QUA_HAN' ? 'ring-1 ring-orange-300/60' : ''}`}
+                      className={`bg-white border rounded-lg p-3.5 cursor-grab active:cursor-grabbing hover:shadow-md transition-all select-none ${
+                        task.status === 'QUA_HAN' ? 'border-orange-200 hover:border-orange-300' : 'border-gray-200 hover:border-indigo-300'
+                      }`}
                     >
                       <p className="text-sm font-medium text-gray-900 mb-2">{task.title}</p>
                       <div className="flex items-center justify-between">
