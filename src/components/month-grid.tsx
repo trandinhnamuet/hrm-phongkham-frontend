@@ -51,7 +51,15 @@ export function MonthGrid({ year, month, rows, cell, legend, emptyText = 'Chưa 
     const d = i + 1;
     const date = `${year}-${pad(month)}-${pad(d)}`;
     const dow = new Date(year, month - 1, d).getDay();
-    return { d, date, dow, weekend: dow === 0 || dow === 6, today: date === todayStr };
+    // Theo lối lịch Việt: chủ nhật đỏ, thứ 7 xanh — nhìn là tách được ngay
+    // cuối tuần khỏi ngày làm việc mà không cần đếm.
+    return {
+      d, date, dow,
+      sun: dow === 0,
+      sat: dow === 6,
+      weekend: dow === 0 || dow === 6,
+      today: date === todayStr,
+    };
   });
 
   return (
@@ -71,12 +79,20 @@ export function MonthGrid({ year, month, rows, cell, legend, emptyText = 'Chưa 
                   key={x.d}
                   className={cn(
                     'border-b border-gray-200 px-0 py-1 text-center font-medium min-w-[21px] sm:min-w-[26px]',
-                    x.weekend ? 'bg-gray-100 text-gray-400' : 'bg-gray-50 text-gray-600',
-                    x.today && 'bg-indigo-50 text-indigo-700',
+                    x.sun ? 'bg-rose-100 text-rose-700'
+                      : x.sat ? 'bg-sky-100 text-sky-700'
+                      : 'bg-gray-50 text-gray-600',
+                    // Hôm nay quan trọng hơn cuối tuần nên đặt sau để thắng
+                    x.today && 'bg-indigo-100 text-indigo-700',
                   )}
                   title={x.date}
                 >
-                  <span className="block text-[9px] leading-none text-gray-400">{WEEKDAY[x.dow]}</span>
+                  <span className={cn(
+                    'block text-[9px] leading-none',
+                    x.weekend ? 'opacity-80' : 'text-gray-400',
+                  )}>
+                    {WEEKDAY[x.dow]}
+                  </span>
                   <span className={cn('block text-[11px] leading-tight mt-0.5', x.today && 'font-bold')}>{x.d}</span>
                 </th>
               ))}
@@ -108,9 +124,12 @@ export function MonthGrid({ year, month, rows, cell, legend, emptyText = 'Chưa 
                       key={x.d}
                       title={c?.title || x.date}
                       className={cn(
-                        'border-b border-gray-100 p-0.5 text-center group-hover:bg-gray-50',
-                        x.weekend && !c && 'bg-gray-50/70',
-                        x.today && 'bg-indigo-50/40',
+                        'border-b border-gray-100 p-0.5 text-center',
+                        // Tô cả cột kể cả ô có dữ liệu, nếu không cột cuối tuần
+                        // bị đứt quãng ở đúng những ngày có chấm công.
+                        x.sun ? 'bg-rose-50/70' : x.sat ? 'bg-sky-50/70' : '',
+                        x.today && 'bg-indigo-50/60',
+                        'group-hover:brightness-[0.97]',
                       )}
                     >
                       {c && (
@@ -130,16 +149,20 @@ export function MonthGrid({ year, month, rows, cell, legend, emptyText = 'Chưa 
         </table>
       </div>
 
-      {legend && legend.length > 0 && (
-        <div className="flex flex-wrap gap-x-3 gap-y-1.5 px-1">
-          {legend.map(l => (
-            <span key={l.label} className="inline-flex items-center gap-1.5 text-[11px] text-gray-500">
-              <span className={cn('w-3.5 h-3.5 rounded', l.cls)} />
-              {l.label}
-            </span>
-          ))}
-        </div>
-      )}
+      <div className="flex flex-wrap gap-x-3 gap-y-1.5 px-1">
+        {(legend ?? []).map(l => (
+          <span key={l.label} className="inline-flex items-center gap-1.5 text-[11px] text-gray-500">
+            <span className={cn('w-3.5 h-3.5 rounded', l.cls)} />
+            {l.label}
+          </span>
+        ))}
+        <span className="inline-flex items-center gap-1.5 text-[11px] text-gray-500">
+          <span className="w-3.5 h-3.5 rounded bg-sky-100" /> Thứ 7
+        </span>
+        <span className="inline-flex items-center gap-1.5 text-[11px] text-gray-500">
+          <span className="w-3.5 h-3.5 rounded bg-rose-100" /> Chủ nhật
+        </span>
+      </div>
     </div>
   );
 }
