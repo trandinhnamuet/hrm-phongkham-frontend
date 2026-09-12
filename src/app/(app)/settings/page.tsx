@@ -373,8 +373,11 @@ function LeaveTypesPanel({ qc }: { qc: any }) {
 
 /* ─── Shifts panel ────────────────────────────────────────── */
 function ShiftsPanel({ qc }: { qc: any }) {
+  const EMPTY = { code: '', name: '', startTime: '08:00', endTime: '17:00', breakMinutes: 0, graceMinutes: 5 };
+
   const [showNew, setShowNew] = useState(false);
-  const [newShift, setNewShift] = useState({ code: '', name: '', startTime: '08:00', endTime: '17:00', breakMinutes: 0, graceMinutes: 5 });
+  const [newShift, setNewShift] = useState(EMPTY);
+  const [editShift, setEditShift] = useState<Shift | null>(null);
 
   const { data: shifts = [] } = useQuery<Shift[]>({
     queryKey: ['shifts'],
@@ -383,40 +386,30 @@ function ShiftsPanel({ qc }: { qc: any }) {
 
   const createShift = useMutation({
     mutationFn: (d: any) => api.post('/attendance/shifts', d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['shifts'] }); setShowNew(false); setNewShift({ code: '', name: '', startTime: '08:00', endTime: '17:00', breakMinutes: 0, graceMinutes: 5 }); toast.success('Đã tạo ca'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['shifts'] }); setShowNew(false); setNewShift(EMPTY); toast.success('Đã tạo ca'); },
     onError: (e: any) => toast.error(e.response?.data?.message || 'Lỗi tạo ca'),
+  });
+  const updateShift = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) => api.patch(`/attendance/shifts/${id}`, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['shifts'] }); setEditShift(null); toast.success('Đã cập nhật ca'); },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Lỗi cập nhật ca'),
+  });
+  const deleteShift = useMutation({
+    mutationFn: (id: number) => api.delete(`/attendance/shifts/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['shifts'] }); toast.success('Đã xóa ca'); },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Lỗi xóa ca'),
   });
 
   return (
     <div className="mt-2 space-y-3">
-      <button onClick={() => setShowNew(s => !s)}
+      <button onClick={() => { setShowNew(s => !s); setEditShift(null); }}
         className="text-xs px-3 h-7 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-md hover:bg-indigo-100 flex items-center gap-1">
         <Plus size={12} /> Thêm ca
       </button>
 
       {showNew && (
         <div className="bg-gray-50 rounded-lg p-3 space-y-3 border border-gray-100">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-gray-600 block mb-1">Mã ca</label>
-              <input value={newShift.code} onChange={e => setNewShift(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="CA_SANG"
-                className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md font-mono" />
-            </div>
-            <div>
-              <label className="text-xs text-gray-600 block mb-1">Tên ca</label>
-              <input value={newShift.name} onChange={e => setNewShift(f => ({ ...f, name: e.target.value }))} placeholder="Ca sáng"
-                className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md" />
-            </div>
-          </div>
-          <div className="grid grid-cols-4 gap-2">
-            {([['startTime', 'Bắt đầu', 'time'], ['endTime', 'Kết thúc', 'time'], ['breakMinutes', 'Nghỉ (ph)', 'number'], ['graceMinutes', 'Gia hạn (ph)', 'number']] as [keyof typeof newShift, string, string][]).map(([key, label, type]) => (
-              <div key={key}>
-                <label className="text-xs text-gray-600 block mb-1">{label}</label>
-                <input type={type} min={0} value={newShift[key] as any} onChange={e => setNewShift(f => ({ ...f, [key]: type === 'number' ? +e.target.value : e.target.value }))}
-                  className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md" />
-              </div>
-            ))}
-          </div>
+          <ShiftFields value={newShift} onChange={setNewShift} />
           <div className="flex gap-2 justify-end">
             <button onClick={() => setShowNew(false)} className="h-7 px-3 text-xs border border-gray-200 rounded-md hover:bg-gray-100">Hủy</button>
             <button onClick={() => createShift.mutate(newShift)} disabled={!newShift.code || !newShift.name || createShift.isPending}
@@ -429,21 +422,91 @@ function ShiftsPanel({ qc }: { qc: any }) {
         {shifts.length === 0 ? (
           <div className="text-center py-8 text-sm text-gray-400">Chưa có ca làm việc</div>
         ) : shifts.map(shift => (
-          <div key={shift.id} className="flex items-center px-3 py-3">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm font-medium text-gray-900">{shift.name}</span>
-                <span className="text-[11px] font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{shift.code}</span>
-                {shift.isActive
-                  ? <span className="text-[11px] text-green-600">Đang dùng</span>
-                  : <span className="text-[11px] text-gray-400">Không dùng</span>}
+          <div key={shift.id} className="px-3 py-3">
+            {editShift?.id === shift.id ? (
+              <div className="space-y-3">
+                <ShiftFields value={editShift} onChange={v => setEditShift(v as Shift)} />
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setEditShift(null)} className="h-7 px-3 text-xs border border-gray-200 rounded-md hover:bg-gray-100">Hủy</button>
+                  <button
+                    onClick={() => updateShift.mutate({
+                      id: shift.id,
+                      data: {
+                        code: editShift.code,
+                        name: editShift.name,
+                        startTime: editShift.startTime,
+                        endTime: editShift.endTime,
+                        breakMinutes: Number(editShift.breakMinutes) || 0,
+                        graceMinutes: Number(editShift.graceMinutes) || 0,
+                      },
+                    })}
+                    disabled={!editShift.code || !editShift.name || updateShift.isPending}
+                    className="h-7 px-3 text-xs bg-indigo-500 text-white rounded-md disabled:opacity-50">Lưu</button>
+                </div>
               </div>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {shift.startTime} — {shift.endTime}
-                {shift.breakMinutes > 0 && ` · Nghỉ ${shift.breakMinutes}ph`}
-                {shift.graceMinutes > 0 && ` · Gia hạn ${shift.graceMinutes}ph`}
-              </p>
-            </div>
+            ) : (
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium text-gray-900">{shift.name}</span>
+                    <span className="text-[11px] font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{shift.code}</span>
+                    {!shift.isActive && <span className="text-[11px] text-red-400">Không dùng</span>}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {hhmm(shift.startTime)} — {hhmm(shift.endTime)}
+                    {shift.breakMinutes > 0 && ` · Nghỉ ${shift.breakMinutes}ph`}
+                    {shift.graceMinutes > 0 && ` · Gia hạn ${shift.graceMinutes}ph`}
+                  </p>
+                </div>
+                <div className="flex gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => { setShowNew(false); setEditShift({ ...shift, startTime: hhmm(shift.startTime), endTime: hhmm(shift.endTime) }); }}
+                    title="Sửa ca"
+                    className="p-1.5 rounded text-gray-400 hover:text-indigo-600 hover:bg-indigo-50"><Pencil size={13} /></button>
+                  <button
+                    onClick={() => deleteShift.mutate(shift.id)}
+                    disabled={deleteShift.isPending}
+                    title="Xóa ca"
+                    className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50"><Trash2 size={13} /></button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Postgres trả về kiểu time là "08:00:00", input type=time cần "08:00". */
+function hhmm(t?: string) { return (t || '').slice(0, 5); }
+
+/** Các ô nhập của một ca, dùng chung cho form thêm mới và form sửa. */
+function ShiftFields({ value, onChange }: { value: any; onChange: (v: any) => void }) {
+  const set = (k: string, v: any) => onChange({ ...value, [k]: v });
+  const numeric: Record<string, boolean> = { breakMinutes: true, graceMinutes: true };
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs text-gray-600 block mb-1">Mã ca</label>
+          <input value={value.code} onChange={e => set('code', e.target.value.toUpperCase())} placeholder="CA_SANG"
+            className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md font-mono" />
+        </div>
+        <div>
+          <label className="text-xs text-gray-600 block mb-1">Tên ca</label>
+          <input value={value.name} onChange={e => set('name', e.target.value)} placeholder="Ca sáng"
+            className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md" />
+        </div>
+      </div>
+      <div className="grid grid-cols-4 gap-2">
+        {([['startTime', 'Bắt đầu', 'time'], ['endTime', 'Kết thúc', 'time'], ['breakMinutes', 'Nghỉ (ph)', 'number'], ['graceMinutes', 'Gia hạn (ph)', 'number']] as [string, string, string][]).map(([key, label, type]) => (
+          <div key={key}>
+            <label className="text-xs text-gray-600 block mb-1">{label}</label>
+            <input type={type} min={0} value={value[key] ?? ''}
+              onChange={e => set(key, numeric[key] ? +e.target.value : e.target.value)}
+              className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md" />
           </div>
         ))}
       </div>

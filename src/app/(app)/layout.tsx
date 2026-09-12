@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Menu } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Sidebar } from '@/components/layout/sidebar';
 import { useAuth } from '@/contexts/auth-context';
 import { SidebarProvider, useSidebar } from '@/contexts/sidebar-context';
@@ -18,18 +20,19 @@ function MobileTopBar() {
       >
         <Menu size={20} />
       </button>
-      <div className="flex items-center gap-2">
+      <Link href="/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
         <div className="w-6 h-6 rounded-md bg-indigo-500 flex items-center justify-center">
           <span className="text-white text-[10px] font-bold">NK</span>
         </div>
         <span className="text-sm font-semibold text-gray-900">HRM Phòng Khám</span>
-      </div>
+      </Link>
     </div>
   );
 }
 
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
+  const { isCollapsed } = useSidebar();
   const router = useRouter();
 
   useEffect(() => {
@@ -51,7 +54,10 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
-      <main className="flex-1 lg:ml-60 flex flex-col overflow-hidden">
+      <main className={cn(
+        'flex-1 flex flex-col overflow-hidden transition-all duration-200',
+        isCollapsed ? 'lg:ml-16' : 'lg:ml-60',
+      )}>
         <MobileTopBar />
         {children}
       </main>

@@ -6,10 +6,9 @@ import { PageHeader } from '@/components/layout/page-header';
 import { useAuth } from '@/contexts/auth-context';
 import api from '@/lib/api';
 import { User, Department, UserRole } from '@/types';
-import { Plus, Search, MoreHorizontal } from 'lucide-react';
+import { Plus, Search, Pencil, KeyRound, UserX, UserCheck, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 const ROLE_MAP: Record<string, { label: string; cls: string }> = {
   GIAM_DOC: { label: 'Giám đốc', cls: 'bg-violet-50 text-violet-700' },
@@ -26,6 +25,7 @@ export default function UsersPage() {
   const [deptFilter, setDeptFilter] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
+  const [pwUser, setPwUser] = useState<User | null>(null);
 
   const { data: users = [], isLoading } = useQuery<User[]>({
     queryKey: ['users'],
@@ -173,19 +173,36 @@ export default function UsersPage() {
                   </td>
                   <td className="px-4 py-3">
                     {me?.role === 'GIAM_DOC' && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger className="p-1 rounded hover:bg-gray-100 text-gray-400 focus:outline-none">
-                          <MoreHorizontal size={16} />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setEditUser(u)}>Chỉnh sửa</DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-red-600"
-                            onClick={() => updateUser.mutate({ id: u.id, data: { status: u.status === 'ACTIVE' ? 'RESIGNED' : 'ACTIVE' } })}>
-                            {u.status === 'ACTIVE' ? 'Vô hiệu hóa' : 'Kích hoạt lại'}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <div className="flex items-center gap-0.5">
+                        <button
+                          onClick={() => setEditUser(u)}
+                          title="Chỉnh sửa"
+                          aria-label={`Chỉnh sửa ${u.fullName}`}
+                          className="p-1.5 rounded-md text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button
+                          onClick={() => setPwUser(u)}
+                          title="Đổi mật khẩu"
+                          aria-label={`Đổi mật khẩu ${u.fullName}`}
+                          className="p-1.5 rounded-md text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                        >
+                          <KeyRound size={15} />
+                        </button>
+                        <button
+                          onClick={() => updateUser.mutate({ id: u.id, data: { status: u.status === 'ACTIVE' ? 'RESIGNED' : 'ACTIVE' } })}
+                          title={u.status === 'ACTIVE' ? 'Vô hiệu hóa' : 'Kích hoạt lại'}
+                          aria-label={`${u.status === 'ACTIVE' ? 'Vô hiệu hóa' : 'Kích hoạt lại'} ${u.fullName}`}
+                          className={`p-1.5 rounded-md text-gray-400 transition-colors ${
+                            u.status === 'ACTIVE'
+                              ? 'hover:text-red-600 hover:bg-red-50'
+                              : 'hover:text-green-600 hover:bg-green-50'
+                          }`}
+                        >
+                          {u.status === 'ACTIVE' ? <UserX size={15} /> : <UserCheck size={15} />}
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -200,6 +217,14 @@ export default function UsersPage() {
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Thêm nhân viên</DialogTitle></DialogHeader>
           <UserForm departments={departments} onSubmit={(d: any) => createUser.mutate(d)} onCancel={() => setShowCreate(false)} />
+        </DialogContent>
+      </Dialog>
+
+      {/* Change password dialog */}
+      <Dialog open={!!pwUser} onOpenChange={(o) => !o && setPwUser(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Đổi mật khẩu</DialogTitle></DialogHeader>
+          {pwUser && <ChangePasswordForm user={pwUser} onDone={() => setPwUser(null)} />}
         </DialogContent>
       </Dialog>
 
@@ -218,6 +243,93 @@ export default function UsersPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function ChangePasswordForm({ user, onDone }: { user: User; onDone: () => void }) {
+  const [pw, setPw] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [show, setShow] = useState(false);
+
+  const save = useMutation({
+    mutationFn: () => api.patch(`/users/${user.id}/password`, { newPassword: pw }),
+    onSuccess: () => { toast.success(`Đã đổi mật khẩu cho ${user.fullName}`); onDone(); },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Lỗi đổi mật khẩu'),
+  });
+
+  const tooShort = pw.length > 0 && pw.length < 6;
+  const mismatch = confirm.length > 0 && pw !== confirm;
+  const canSave = pw.length >= 6 && pw === confirm && !save.isPending;
+
+  return (
+    <form
+      onSubmit={(e) => { e.preventDefault(); if (canSave) save.mutate(); }}
+      className="space-y-3 mt-2"
+    >
+      <div className="flex items-center gap-2.5 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+        <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+          <span className="text-indigo-600 text-xs font-semibold">{user.fullName?.charAt(0)}</span>
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-gray-900 truncate">{user.fullName}</p>
+          <p className="text-xs text-gray-400 truncate">{user.email}</p>
+        </div>
+      </div>
+
+      <div>
+        <label className="text-xs font-medium text-gray-700 block mb-1">Mật khẩu mới *</label>
+        <div className="relative">
+          <input
+            required
+            type={show ? 'text' : 'password'}
+            value={pw}
+            onChange={e => setPw(e.target.value)}
+            placeholder="Tối thiểu 6 ký tự"
+            className={`w-full h-9 pl-3 pr-9 text-sm border rounded-md outline-none focus:border-indigo-400 ${
+              tooShort ? 'border-red-300' : 'border-gray-200'
+            }`}
+          />
+          <button
+            type="button"
+            onClick={() => setShow(s => !s)}
+            title={show ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+          >
+            {show ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
+        </div>
+        {tooShort && <p className="text-[11px] text-red-500 mt-1">Mật khẩu tối thiểu 6 ký tự</p>}
+      </div>
+
+      <div>
+        <label className="text-xs font-medium text-gray-700 block mb-1">Nhập lại mật khẩu *</label>
+        <input
+          required
+          type={show ? 'text' : 'password'}
+          value={confirm}
+          onChange={e => setConfirm(e.target.value)}
+          className={`w-full h-9 px-3 text-sm border rounded-md outline-none focus:border-indigo-400 ${
+            mismatch ? 'border-red-300' : 'border-gray-200'
+          }`}
+        />
+        {mismatch && <p className="text-[11px] text-red-500 mt-1">Hai mật khẩu không khớp</p>}
+      </div>
+
+      <p className="text-[11px] text-gray-400">
+        Nhân viên này sẽ đăng nhập bằng mật khẩu mới ở lần sau. Hãy báo lại cho họ.
+      </p>
+
+      <div className="flex justify-end gap-2 pt-1">
+        <button type="button" onClick={onDone}
+          className="h-8 px-4 text-sm text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">
+          Hủy
+        </button>
+        <button type="submit" disabled={!canSave}
+          className="h-8 px-4 text-sm text-white bg-indigo-500 rounded-md hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed">
+          {save.isPending ? 'Đang lưu...' : 'Đổi mật khẩu'}
+        </button>
+      </div>
+    </form>
   );
 }
 
