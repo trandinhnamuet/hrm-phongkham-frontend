@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# File tam khi kiem tra bundle da deploy (tai chunk ve de grep), khong thuoc ma nguon
+/ck*/
+/fe*.html
+/*.css
+!src/**/*.css
