@@ -187,7 +187,7 @@ export default function LeavePage() {
         )}
 
         {/* Thanh lọc + xuất file */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="filter-row">
           {isManager && activeTab === 'all' && (
             <SearchSelect
               options={staffOptions}
@@ -209,8 +209,63 @@ export default function LeavePage() {
           </button>
         </div>
 
-        {/* Request list */}
-        <div className="surface overflow-hidden overflow-x-auto">
+        {/* Mobile: thẻ thay bảng */}
+        <div className="md:hidden space-y-2">
+          {displayReqs.length === 0 && (
+            <div className="py-10 text-center">
+              <CalendarOff size={32} className="text-gray-200 mx-auto mb-2" />
+              <p className="text-sm text-gray-400">Chưa có đơn nghỉ tuần nào</p>
+            </div>
+          )}
+          {displayReqs.map((req: LeaveRequest) => {
+            const canAct = req.status === 'PENDING' && ((canReview && activeTab === 'all') || activeTab === 'my');
+            return (
+              <div key={req.id} className="surface p-3.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    {isManager && activeTab === 'all' && (
+                      <p className="text-xs text-gray-500 truncate">{req.user?.fullName}</p>
+                    )}
+                    <p className="text-sm font-semibold text-gray-900">{req.leaveType?.name}</p>
+                  </div>
+                  <span className={`flex-shrink-0 text-[11px] font-medium px-2 py-0.5 rounded ${STATUS_MAP[req.status]?.cls}`}>
+                    {STATUS_MAP[req.status]?.label}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-600 mt-1.5">
+                  {req.startDate} → {req.endDate} · <b>{req.totalDays} ngày</b>
+                </p>
+                {(req as any).reason && (
+                  <p className="text-xs text-gray-400 mt-1 line-clamp-2">{(req as any).reason}</p>
+                )}
+                {canAct && (
+                  <div className="flex justify-end gap-1.5 mt-2 pt-2 border-t border-gray-100">
+                    {canReview && activeTab === 'all' && (
+                      <>
+                        <button onClick={() => reviewReq.mutate({ id: req.id, status: 'APPROVED' })}
+                          className="btn btn-sm btn-secondary text-green-700 border-green-200 hover:bg-green-50">
+                          <Check size={14} /> Duyệt
+                        </button>
+                        <button onClick={() => reviewReq.mutate({ id: req.id, status: 'REJECTED' })}
+                          className="btn btn-sm btn-secondary text-red-600 border-red-200 hover:bg-red-50">
+                          <XIcon size={14} /> Từ chối
+                        </button>
+                      </>
+                    )}
+                    {activeTab === 'my' && (
+                      <button onClick={() => cancelReq.mutate(req.id)} className="btn btn-sm btn-secondary">
+                        <Ban size={14} /> Hủy đơn
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Request list — từ md trở lên */}
+        <div className="hidden md:block surface overflow-hidden overflow-x-auto">
           <table className="w-full min-w-[640px]">
             <thead>
               <tr className="bg-gray-50">

@@ -81,16 +81,17 @@ export default function UsersPage() {
 
       <div className="flex-1 p-4 sm:p-6">
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-          <div className="relative">
+        <div className="space-y-2 mb-4">
+          <div className="relative w-full sm:w-64">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Tìm nhân viên..."
-              className="field pl-8 w-52"
+              className="field pl-8"
             />
           </div>
+          <div className="filter-row">
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value as any)}
@@ -124,10 +125,63 @@ export default function UsersPage() {
               Đặt lại
             </button>
           )}
+          </div>
         </div>
 
-        {/* Table */}
-        <div className="surface overflow-hidden overflow-x-auto">
+        {/* Mobile: thẻ thay bảng */}
+        <div className="md:hidden space-y-2">
+          {isLoading ? (
+            <div className="py-10 flex justify-center">
+              <div className="w-5 h-5 border-2 border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <p className="py-10 text-center text-sm text-gray-400">Không có nhân viên phù hợp</p>
+          ) : filtered.map(u => (
+            <div key={u.id} className="surface p-3.5">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                  <span className="text-indigo-600 text-sm font-semibold">{u.fullName?.charAt(0)}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{u.fullName}</p>
+                    <span className="text-[11px] font-mono text-gray-400">{u.employeeCode}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 truncate">{u.email}</p>
+                  <p className="text-xs text-gray-500 truncate">
+                    {[u.department?.name, u.positionTitle].filter(Boolean).join(' · ') || '—'}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded ${ROLE_MAP[u.role]?.cls}`}>
+                      {ROLE_MAP[u.role]?.label}
+                    </span>
+                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded ${
+                      u.status === 'ACTIVE' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                      {u.status === 'ACTIVE' ? 'Đang làm' : 'Đã nghỉ'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              {me?.role === 'GIAM_DOC' && (
+                <div className="flex justify-end gap-1 mt-2 pt-2 border-t border-gray-100">
+                  <button onClick={() => setEditUser(u)} title="Chỉnh sửa"
+                    className="icon-btn hover:text-indigo-600 hover:bg-indigo-50"><Pencil size={16} /></button>
+                  <button onClick={() => setPwUser(u)} title="Đổi mật khẩu"
+                    className="icon-btn hover:text-amber-600 hover:bg-amber-50"><KeyRound size={16} /></button>
+                  <button
+                    onClick={() => updateUser.mutate({ id: u.id, data: { status: u.status === 'ACTIVE' ? 'RESIGNED' : 'ACTIVE' } })}
+                    title={u.status === 'ACTIVE' ? 'Vô hiệu hóa' : 'Kích hoạt lại'}
+                    className={`icon-btn ${u.status === 'ACTIVE' ? 'hover:text-red-600 hover:bg-red-50' : 'hover:text-green-600 hover:bg-green-50'}`}>
+                    {u.status === 'ACTIVE' ? <UserX size={16} /> : <UserCheck size={16} />}
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Table — từ md trở lên */}
+        <div className="hidden md:block surface overflow-hidden overflow-x-auto">
           <table className="w-full min-w-[860px]">
             <thead>
               <tr className="bg-gray-50">

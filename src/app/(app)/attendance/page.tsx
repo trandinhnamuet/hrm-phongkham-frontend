@@ -281,7 +281,7 @@ export default function AttendancePage() {
               </p>
               <span className="text-xs text-gray-400">({filteredLogs.length})</span>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="filter-row w-full sm:w-auto">
               {isManager && (
                 <SearchSelect
                   options={staffOptions}
@@ -306,7 +306,54 @@ export default function AttendancePage() {
               </button>
             </div>
           </div>
-          <div className="overflow-x-auto">
+          {/* Mobile: thẻ thay bảng */}
+          <div className="md:hidden divide-y divide-gray-100">
+            {filteredLogs.length === 0 && (
+              <p className="py-10 text-center text-sm text-gray-400">Chưa có dữ liệu</p>
+            )}
+            {filteredLogs.map((log: AttendanceLog) => (
+              <div key={log.id} className="px-4 py-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">{log.workDate}</p>
+                    {isManager && <p className="text-xs text-gray-500 truncate">{(log as any).user?.fullName}</p>}
+                  </div>
+                  <span className={`flex-shrink-0 text-[11px] font-medium px-2 py-0.5 rounded ${STATUS_MAP[log.status]?.cls || 'bg-gray-100 text-gray-600'}`}>
+                    {STATUS_MAP[log.status]?.label || log.status}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 mt-2 text-center">
+                  <div className="bg-gray-50 rounded-lg py-1.5">
+                    <p className="text-[10px] text-gray-400">Vào</p>
+                    <p className="text-sm font-medium text-gray-800">{fmtTime(log.checkInAt)}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg py-1.5">
+                    <p className="text-[10px] text-gray-400">Ra</p>
+                    <p className="text-sm font-medium text-gray-800">{fmtTime(log.checkOutAt)}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg py-1.5">
+                    <p className="text-[10px] text-gray-400">Làm việc</p>
+                    <p className="text-sm font-medium text-gray-800">{fmtMins(log.workedMinutes)}</p>
+                  </div>
+                </div>
+                {isDirector && (
+                  <div className="flex justify-end mt-2">
+                    <button
+                      onClick={() => {
+                        setAdjustLog(log);
+                        setAdjustForm({ logId: log.id, field: 'CHECK_IN', requestedValue: toDatetimeLocal(log.checkInAt), reason: '' });
+                        setShowAdjust(true);
+                      }}
+                      className="btn btn-sm btn-ghost text-indigo-600">
+                      <PencilLine size={14} /> Điều chỉnh
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto">
           <table className="w-full min-w-[480px]">
             <thead>
               <tr className="bg-gray-50 text-left">

@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { TaskDetailDialog } from '@/components/tasks/task-detail-dialog';
 import { AssigneeStack, AssigneePicker } from '@/components/tasks/assignee-picker';
 import { ReviewBadge } from '@/components/tasks/review-badge';
+import { MobileBoard } from '@/components/tasks/mobile-board';
 
 /* ─── Constants ──────────────────────────────────────────── */
 const TODAY = new Date().toISOString().split('T')[0];
@@ -132,14 +133,17 @@ export default function ManageTasksPage() {
       />
 
       {/* Filter bar */}
-      <div className="px-6 py-3 bg-white border-b border-gray-100 flex flex-wrap gap-2 items-center">
-        {['', ...STATUS_COLS.map(c => c.key)].map(s => (
-          <button key={s} onClick={() => setFilterStatus(s)}
-            className={`flex-shrink-0 px-3 py-1 text-xs font-medium rounded-md transition-colors ${filterStatus === s ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500 hover:bg-gray-100'}`}>
-            {s === '' ? 'Tất cả' : STATUS_COLS.find(c => c.key === s)?.label}
-          </button>
-        ))}
-        <span className="w-px h-4 bg-gray-200 mx-1" />
+      <div className="px-4 sm:px-6 py-2.5 sm:py-3 bg-white border-b border-gray-100 filter-row">
+        {/* Chip trạng thái chỉ dùng trên desktop, mobile đã có tab riêng trong bảng */}
+        <div className="hidden lg:flex items-center gap-2">
+          {['', ...STATUS_COLS.map(c => c.key)].map(s => (
+            <button key={s} onClick={() => setFilterStatus(s)}
+              className={`flex-shrink-0 px-3 py-1 text-xs font-medium rounded-md transition-colors ${filterStatus === s ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500 hover:bg-gray-100'}`}>
+              {s === '' ? 'Tất cả' : STATUS_COLS.find(c => c.key === s)?.label}
+            </button>
+          ))}
+          <span className="w-px h-4 bg-gray-200 mx-1" />
+        </div>
         <div className="relative">
           <select value={filterDepartment} onChange={e => { setFilterDepartment(e.target.value); setFilterAssignee(''); }}
             className="field field-sm w-auto pr-7 appearance-none">
@@ -158,8 +162,8 @@ export default function ManageTasksPage() {
         </div>
       </div>
 
-      {/* Kanban board */}
-      <div className="flex-1 overflow-x-auto p-3 sm:p-6">
+      {/* Kanban desktop — kéo-thả, chỉ từ lg */}
+      <div className="hidden lg:block flex-1 overflow-x-auto p-6">
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <div className="w-6 h-6 border-2 border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
@@ -219,6 +223,21 @@ export default function ManageTasksPage() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Mobile: mỗi cột trọn màn hình, vuốt ngang, chuyển trạng thái bằng nút */}
+      <div className="lg:hidden flex-1 min-h-0">
+        <MobileBoard
+          columns={STATUS_COLS}
+          tasks={filteredTasks}
+          loading={isLoading}
+          onOpen={setSelectedTask}
+          canMoveTo={(from, to) => to !== 'QUA_HAN' && (from !== 'QUA_HAN' || to === 'DONE')}
+          onMove={(task, to) => {
+            updateTask.mutate({ id: task.id, data: { status: to } });
+            toast.success(`Đã chuyển sang "${STATUS_COLS.find(c => c.key === to)?.label}"`);
+          }}
+        />
       </div>
 
       {/* Task Detail Dialog (dùng chung với màn /tasks) */}

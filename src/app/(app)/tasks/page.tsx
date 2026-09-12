@@ -12,12 +12,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { TaskDetailDialog } from '@/components/tasks/task-detail-dialog';
 import { AssigneeStack, AssigneePicker } from '@/components/tasks/assignee-picker';
 import { ReviewBadge } from '@/components/tasks/review-badge';
+import { MobileBoard } from '@/components/tasks/mobile-board';
 
 const STATUS_COLS: { key: TaskStatus; label: string; color: string }[] = [
   { key: 'TODO',        label: 'Cần làm',     color: 'bg-gray-100 text-gray-700' },
   { key: 'IN_PROGRESS', label: 'Đang làm',    color: 'bg-blue-50 text-blue-700' },
   { key: 'DONE',        label: 'Hoàn thành',  color: 'bg-green-50 text-green-700' },
   { key: 'CANCELLED',   label: 'Đã hủy',      color: 'bg-red-50 text-red-700' },
+  // Thiếu cột này thì việc quá hạn không nằm ở đâu, nhân viên không thấy để xử lý.
+  { key: 'QUA_HAN',     label: 'Quá hạn',     color: 'bg-orange-50 text-orange-700' },
 ];
 
 const PRIORITY_COLORS: Record<TaskPriority, string> = {
@@ -85,6 +88,11 @@ export default function TasksPage() {
 
   const handleDrop = (targetStatus: TaskStatus) => {
     const drag = dragRef.current;
+    // Không tự kéo vào Quá hạn; việc quá hạn chỉ chuyển được sang Hoàn thành.
+    if (drag && (targetStatus === 'QUA_HAN' || (drag.fromStatus === 'QUA_HAN' && targetStatus !== 'DONE'))) {
+      if (drag.fromStatus === 'QUA_HAN') toast.error('Công việc quá hạn chỉ có thể chuyển sang "Hoàn thành"');
+      setDragOverCol(null); dragRef.current = null; return;
+    }
     if (drag && drag.fromStatus !== targetStatus) {
       updateTask.mutate({ id: drag.id, data: { status: targetStatus } });
       const col = STATUS_COLS.find(c => c.key === targetStatus);
@@ -109,7 +117,7 @@ export default function TasksPage() {
       />
 
       {/* Filter bar */}
-      <div className="px-6 py-3 bg-white border-b border-gray-100 flex gap-2 overflow-x-auto">
+      <div className="hidden lg:flex px-6 py-3 bg-white border-b border-gray-100 gap-2 overflow-x-auto">
         {['', ...STATUS_COLS.map(c => c.key)].map((s) => (
           <button key={s} onClick={() => setFilterStatus(s)}
             className={`flex-shrink-0 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
@@ -119,14 +127,14 @@ export default function TasksPage() {
         ))}
       </div>
 
-      {/* Kanban board */}
-      <div className="flex-1 overflow-x-auto p-3 sm:p-6">
+      {/* Kanban desktop — kéo-thả, chỉ từ lg */}
+      <div className="hidden lg:block flex-1 overflow-x-auto p-6">
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <div className="w-6 h-6 border-2 border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
           </div>
         ) : (
-          <div className="flex gap-3 h-full" style={{ minWidth: '720px' }}>
+          <div className="flex gap-3 h-full" style={{ minWidth: '900px' }}>
             {grouped.map(col => (
               <div
                 key={col.key}
@@ -194,6 +202,21 @@ export default function TasksPage() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Mobile: mỗi cột trọn màn hình, vuốt ngang, chuyển trạng thái bằng nút */}
+      <div className="lg:hidden flex-1 min-h-0">
+        <MobileBoard
+          columns={STATUS_COLS}
+          tasks={tasks}
+          loading={isLoading}
+          onOpen={setSelectedTask}
+          canMoveTo={(from, to) => to !== 'QUA_HAN' && (from !== 'QUA_HAN' || to === 'DONE')}
+          onMove={(task, to) => {
+            updateTask.mutate({ id: task.id, data: { status: to } });
+            toast.success(`Đã chuyển sang "${STATUS_COLS.find(c => c.key === to)?.label}"`);
+          }}
+        />
       </div>
 
       {/* Task Detail Dialog (dùng chung với màn /tasks/manage) */}
