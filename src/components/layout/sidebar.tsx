@@ -4,19 +4,19 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, CheckSquare, Clock, CalendarOff,
-  Users, Settings, LogOut, ChevronRight, X, ClipboardList,
+  Users, Settings, LogOut, ChevronRight, X, ClipboardList, Bell,
   PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { useSidebar } from '@/contexts/sidebar-context';
 import { cn } from '@/lib/utils';
-import { NotificationBell } from '@/components/notifications/notification-bell';
 
 const navItems = [
   { href: '/dashboard',  label: 'Dashboard',  icon: LayoutDashboard, managerHidden: false },
   { href: '/tasks',      label: 'Công việc',  icon: CheckSquare,     managerHidden: false },
   { href: '/attendance', label: 'Chấm công',  icon: Clock,           managerHidden: true  },
   { href: '/leave',      label: 'Nghỉ tuần',  icon: CalendarOff,     managerHidden: false },
+  { href: '/notifications', label: 'Thông báo', icon: Bell,          managerHidden: false },
 ];
 
 const managerItems = [
@@ -103,10 +103,6 @@ export function Sidebar() {
               HRM Phòng Khám
             </span>
           </Link>
-          {/* Chuông: desktop, khi menu đang mở rộng */}
-          <div className={cn('hidden lg:block', isCollapsed && 'lg:hidden')}>
-            <NotificationBell variant="dark" />
-          </div>
           {/* Close button — mobile only */}
           <button
             onClick={close}
@@ -116,13 +112,6 @@ export function Sidebar() {
             <X size={16} />
           </button>
         </div>
-
-        {/* Chuông khi menu thu gọn: hàng logo không đủ chỗ, đặt xuống dưới */}
-        {isCollapsed && (
-          <div className="hidden lg:flex justify-center pt-2">
-            <NotificationBell variant="dark" />
-          </div>
-        )}
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto overflow-x-hidden py-4 px-2">

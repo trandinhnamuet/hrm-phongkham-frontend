@@ -3,28 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Bell, CheckCheck, ClipboardCheck, MessageSquare, CalendarOff, UserPlus, X } from 'lucide-react';
+import { Bell, CheckCheck, X, ArrowRight } from 'lucide-react';
 import api from '@/lib/api';
 import { AppNotification } from '@/types';
 import { cn } from '@/lib/utils';
-
-const TYPE_META: Record<string, { icon: any; cls: string }> = {
-  TASK_ASSIGNED:  { icon: UserPlus,       cls: 'bg-indigo-50 text-indigo-600' },
-  TASK_COMMENT:   { icon: MessageSquare,  cls: 'bg-blue-50 text-blue-600' },
-  TASK_REVIEWED:  { icon: ClipboardCheck, cls: 'bg-amber-50 text-amber-600' },
-  LEAVE_REVIEWED: { icon: CalendarOff,    cls: 'bg-green-50 text-green-600' },
-};
-
-function timeAgo(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return 'vừa xong';
-  if (m < 60) return `${m} phút trước`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h} giờ trước`;
-  const d = Math.floor(h / 24);
-  return d < 7 ? `${d} ngày trước` : new Date(iso).toLocaleDateString('vi-VN');
-}
+import { NotificationItem } from '@/components/notifications/notification-item';
 
 /**
  * Mở hộp chi tiết công việc từ một link dạng /tasks?task=ID.
@@ -36,8 +19,8 @@ export function openTaskFromLink(link: string) {
   if (m) window.dispatchEvent(new CustomEvent('hrm:open-task', { detail: Number(m[1]) }));
 }
 
-/** Chuông thông báo: đếm số chưa đọc mỗi 30s, bấm mở danh sách. */
-export function NotificationBell({ variant = 'light' }: { variant?: 'light' | 'dark' }) {
+/** Chuông thông báo ở góc phải thanh header: đếm chưa đọc mỗi 30s, bấm mở danh sách. */
+export function NotificationBell() {
   const router = useRouter();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -90,7 +73,6 @@ export function NotificationBell({ variant = 'light' }: { variant?: 'light' | 'd
   };
 
   const count = unread?.count ?? 0;
-  const dark = variant === 'dark';
 
   return (
     <div ref={boxRef} className="relative">
@@ -98,10 +80,7 @@ export function NotificationBell({ variant = 'light' }: { variant?: 'light' | 'd
         onClick={() => setOpen(o => !o)}
         title="Thông báo"
         aria-label={`Thông báo${count ? `, ${count} chưa đọc` : ''}`}
-        className={cn(
-          'relative inline-flex items-center justify-center w-9 h-9 rounded-lg transition-colors',
-          dark ? 'text-[#A1A1AA] hover:bg-[#2C2C2E] hover:text-white' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900',
-        )}
+        className="relative inline-flex items-center justify-center w-9 h-9 rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
       >
         <Bell size={18} />
         {count > 0 && (
@@ -118,8 +97,10 @@ export function NotificationBell({ variant = 'light' }: { variant?: 'light' | 'd
           <div className={cn(
             'z-50 bg-white shadow-2xl ring-1 ring-black/5 flex flex-col overflow-hidden',
             'fixed inset-x-3 top-3 max-h-[80dvh] rounded-2xl',
-            'sm:absolute sm:inset-auto sm:top-full sm:mt-2 sm:w-[380px] sm:max-h-[520px] sm:rounded-xl',
-            dark ? 'sm:left-0' : 'sm:right-0',
+            // Desktop: thả xuống từ chuông, canh mép phải. Giới hạn theo chiều cao
+            // màn hình vì main có overflow-hidden, tràn ra là bị cắt.
+            'sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[380px]',
+            'sm:max-h-[min(520px,calc(100dvh-8rem))] sm:rounded-xl',
           )}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
               <p className="text-sm font-semibold text-gray-900">
@@ -144,35 +125,19 @@ export function NotificationBell({ variant = 'light' }: { variant?: 'light' | 'd
                   <Bell size={28} className="mx-auto text-gray-200 mb-2" />
                   <p className="text-sm text-gray-400">Chưa có thông báo nào</p>
                 </div>
-              ) : items.map(n => {
-                const meta = TYPE_META[n.type] || TYPE_META.TASK_COMMENT;
-                const Icon = meta.icon;
-                return (
-                  <button
-                    key={n.id}
-                    onClick={() => go(n)}
-                    className={cn(
-                      'w-full flex items-start gap-3 px-4 py-3 text-left border-b border-gray-50 transition-colors hover:bg-gray-50',
-                      !n.isRead && 'bg-indigo-50/40',
-                    )}
-                  >
-                    <span className={cn('w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0', meta.cls)}>
-                      <Icon size={15} />
-                    </span>
-                    <span className="flex-1 min-w-0">
-                      <span className={cn('block text-sm leading-snug text-gray-900', !n.isRead && 'font-semibold')}>{n.title}</span>
-                      {n.body && (
-                        <span className="block text-xs text-gray-600 mt-1 whitespace-pre-wrap line-clamp-3">{n.body}</span>
-                      )}
-                      <span className="block text-[11px] text-gray-400 mt-1">
-                        {n.actor?.fullName ? `${n.actor.fullName} · ` : ''}{timeAgo(n.createdAt)}
-                      </span>
-                    </span>
-                    {!n.isRead && <span className="w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0 mt-2" />}
-                  </button>
-                );
-              })}
+              ) : items.slice(0, 12).map(n => (
+                <div key={n.id} className="border-b border-gray-50 last:border-0">
+                  <NotificationItem n={n} onClick={() => go(n)} />
+                </div>
+              ))}
             </div>
+
+            <button
+              onClick={() => { setOpen(false); router.push('/notifications'); }}
+              className="flex items-center justify-center gap-1.5 h-11 border-t border-gray-100 text-sm font-medium text-indigo-600 hover:bg-indigo-50 transition-colors flex-shrink-0"
+            >
+              Xem tất cả thông báo <ArrowRight size={14} />
+            </button>
           </div>
         </>
       )}

@@ -26,6 +26,12 @@ interface Props {
   emptyText?: string;
 }
 
+/* Bề rộng ô ngày: mobile hẹp để thấy được nhiều ngày hơn, desktop rộng hơn chút.
+   minWidth của bảng tính theo cỡ mobile, còn table w-full nên trên desktop bảng
+   tự giãn cho vừa khung — hết cuộn ngang. */
+const NAME_W_MOBILE = 92;
+const CELL_W_MOBILE = 21;
+
 const WEEKDAY = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
 function pad(n: number) { return String(n).padStart(2, '0'); }
@@ -51,24 +57,27 @@ export function MonthGrid({ year, month, rows, cell, legend, emptyText = 'Chưa 
   return (
     <div className="space-y-2">
       <div className="overflow-x-auto">
-        <table className="border-separate border-spacing-0 text-xs" style={{ minWidth: 220 + daysInMonth * 34 }}>
+        <table
+          className="w-full border-separate border-spacing-0 text-xs"
+          style={{ minWidth: NAME_W_MOBILE + daysInMonth * CELL_W_MOBILE }}
+        >
           <thead>
             <tr>
-              <th className="sticky left-0 z-10 bg-gray-50 border-b border-r border-gray-200 px-3 py-2 text-left font-semibold text-gray-600 min-w-[180px]">
+              <th className="sticky left-0 z-10 bg-gray-50 border-b border-r border-gray-200 px-2 py-2 text-left font-semibold text-gray-600 w-[92px] sm:w-[130px] min-w-[92px] sm:min-w-[130px]">
                 Nhân viên
               </th>
               {days.map(x => (
                 <th
                   key={x.d}
                   className={cn(
-                    'border-b border-gray-200 px-0 py-1.5 text-center font-medium min-w-[34px]',
+                    'border-b border-gray-200 px-0 py-1 text-center font-medium min-w-[21px] sm:min-w-[26px]',
                     x.weekend ? 'bg-gray-100 text-gray-400' : 'bg-gray-50 text-gray-600',
                     x.today && 'bg-indigo-50 text-indigo-700',
                   )}
                   title={x.date}
                 >
-                  <span className="block text-[10px] leading-none">{WEEKDAY[x.dow]}</span>
-                  <span className={cn('block leading-tight mt-0.5', x.today && 'font-bold')}>{x.d}</span>
+                  <span className="block text-[9px] leading-none text-gray-400">{WEEKDAY[x.dow]}</span>
+                  <span className={cn('block text-[11px] leading-tight mt-0.5', x.today && 'font-bold')}>{x.d}</span>
                 </th>
               ))}
             </tr>
@@ -81,12 +90,16 @@ export function MonthGrid({ year, month, rows, cell, legend, emptyText = 'Chưa 
             )}
             {rows.map((r, ri) => (
               <tr key={r.id} className="group">
-                <td className={cn(
-                  'sticky left-0 z-10 border-b border-r border-gray-200 px-3 py-1.5 whitespace-nowrap group-hover:bg-gray-50',
-                  ri % 2 ? 'bg-gray-50/40' : 'bg-white',
-                )}>
-                  <span className="block text-[13px] font-medium text-gray-900 truncate max-w-[200px]">{r.name}</span>
-                  {r.sub && <span className="block text-[10px] text-gray-400 truncate">{r.sub}</span>}
+                <td
+                  title={r.sub ? `${r.name} · ${r.sub}` : r.name}
+                  className={cn(
+                    'sticky left-0 z-10 border-b border-r border-gray-200 px-2 py-1 group-hover:bg-gray-50',
+                    ri % 2 ? 'bg-gray-50/40' : 'bg-white',
+                  )}
+                >
+                  {/* Cột hẹp nên tên dài bị cắt, rê chuột xem đầy đủ ở title */}
+                  <span className="block text-[12px] font-medium text-gray-900 truncate">{r.name}</span>
+                  {r.sub && <span className="hidden sm:block text-[10px] text-gray-400 truncate">{r.sub}</span>}
                 </td>
                 {days.map(x => {
                   const c = cell(r.id, x.date);
@@ -102,7 +115,7 @@ export function MonthGrid({ year, month, rows, cell, legend, emptyText = 'Chưa 
                     >
                       {c && (
                         <span className={cn(
-                          'inline-flex items-center justify-center w-7 h-7 rounded-md text-[10px] font-semibold',
+                          'inline-flex items-center justify-center w-[19px] h-[19px] sm:w-6 sm:h-6 rounded text-[10px] font-semibold',
                           c.cls,
                         )}>
                           {c.label}

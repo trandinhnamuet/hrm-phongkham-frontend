@@ -1,4 +1,5 @@
 import React from 'react';
+import { NotificationBell } from '@/components/notifications/notification-bell';
 
 interface PageHeaderProps {
   title: string;
@@ -14,7 +15,14 @@ export function PageHeader({ title, description, actions }: PageHeaderProps) {
         {/* Mô tả chỉ là phụ, màn hình hẹp thì bỏ để nhường chỗ cho nút thao tác */}
         {description && <p className="hidden sm:block text-xs text-gray-500 truncate">{description}</p>}
       </div>
-      {actions && <div className="flex items-center gap-2 flex-shrink-0">{actions}</div>}
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {actions}
+        {/* Chuông nằm ngoài cùng bên phải. Chỉ desktop: trên mobile đã có sẵn
+            chuông ở thanh trên cùng, thêm ở đây thành hai cái. */}
+        <div className="hidden lg:block">
+          <NotificationBell />
+        </div>
+      </div>
     </div>
   );
 }
