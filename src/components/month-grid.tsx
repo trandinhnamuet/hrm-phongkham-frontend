@@ -32,6 +32,12 @@ interface Props {
 const NAME_W_MOBILE = 92;
 const CELL_W_MOBILE = 21;
 
+/* Thứ 7 và chủ nhật dùng CHUNG một màu: hai cột cạnh nhau mà khác màu thì trông
+   như hai loại ngày khác nhau. Ô trong bảng dùng cùng màu nhưng nhạt hơn để nhãn
+   trạng thái đặt lên trên vẫn đọc được. */
+const WEEKEND_HEAD = 'bg-[#f7cbb0] text-[#7c3f1d]';
+const WEEKEND_CELL = 'bg-[#f7cbb0]/45';
+
 const WEEKDAY = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
 function pad(n: number) { return String(n).padStart(2, '0'); }
@@ -51,12 +57,8 @@ export function MonthGrid({ year, month, rows, cell, legend, emptyText = 'Chưa 
     const d = i + 1;
     const date = `${year}-${pad(month)}-${pad(d)}`;
     const dow = new Date(year, month - 1, d).getDay();
-    // Theo lối lịch Việt: chủ nhật đỏ, thứ 7 xanh — nhìn là tách được ngay
-    // cuối tuần khỏi ngày làm việc mà không cần đếm.
     return {
       d, date, dow,
-      sun: dow === 0,
-      sat: dow === 6,
       weekend: dow === 0 || dow === 6,
       today: date === todayStr,
     };
@@ -79,17 +81,18 @@ export function MonthGrid({ year, month, rows, cell, legend, emptyText = 'Chưa 
                   key={x.d}
                   className={cn(
                     'border-b border-gray-200 px-0 py-1 text-center font-medium min-w-[21px] sm:min-w-[26px]',
-                    x.sun ? 'bg-rose-100 text-rose-700'
-                      : x.sat ? 'bg-sky-100 text-sky-700'
+                    x.weekend ? WEEKEND_HEAD
+                      : x.today ? 'bg-indigo-100 text-indigo-700'
                       : 'bg-gray-50 text-gray-600',
-                    // Hôm nay quan trọng hơn cuối tuần nên đặt sau để thắng
-                    x.today && 'bg-indigo-100 text-indigo-700',
+                    // Hôm nay đánh dấu bằng viền, không bằng nền: nền sẽ ghi đè
+                    // màu cuối tuần và làm một cột lạc khỏi các cột còn lại.
+                    x.today && 'ring-2 ring-inset ring-indigo-500 font-bold',
                   )}
                   title={x.date}
                 >
                   <span className={cn(
                     'block text-[9px] leading-none',
-                    x.weekend ? 'opacity-80' : 'text-gray-400',
+                    x.weekend ? 'opacity-70' : 'text-gray-400',
                   )}>
                     {WEEKDAY[x.dow]}
                   </span>
@@ -127,8 +130,7 @@ export function MonthGrid({ year, month, rows, cell, legend, emptyText = 'Chưa 
                         'border-b border-gray-100 p-0.5 text-center',
                         // Tô cả cột kể cả ô có dữ liệu, nếu không cột cuối tuần
                         // bị đứt quãng ở đúng những ngày có chấm công.
-                        x.sun ? 'bg-rose-50/70' : x.sat ? 'bg-sky-50/70' : '',
-                        x.today && 'bg-indigo-50/60',
+                        x.weekend ? WEEKEND_CELL : x.today ? 'bg-indigo-50/60' : '',
                         'group-hover:brightness-[0.97]',
                       )}
                     >
@@ -157,10 +159,10 @@ export function MonthGrid({ year, month, rows, cell, legend, emptyText = 'Chưa 
           </span>
         ))}
         <span className="inline-flex items-center gap-1.5 text-[11px] text-gray-500">
-          <span className="w-3.5 h-3.5 rounded bg-sky-100" /> Thứ 7
+          <span className="w-3.5 h-3.5 rounded bg-[#f7cbb0]" /> Cuối tuần (T7, CN)
         </span>
         <span className="inline-flex items-center gap-1.5 text-[11px] text-gray-500">
-          <span className="w-3.5 h-3.5 rounded bg-rose-100" /> Chủ nhật
+          <span className="w-3.5 h-3.5 rounded ring-2 ring-inset ring-indigo-500" /> Hôm nay
         </span>
       </div>
     </div>
