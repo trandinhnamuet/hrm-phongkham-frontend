@@ -79,7 +79,7 @@ export function Sidebar() {
 
       <aside
         className={cn(
-          'fixed left-0 top-0 h-screen flex flex-col z-40 transition-all duration-200',
+          'fixed left-0 top-0 h-[100dvh] flex flex-col z-40 transition-all duration-200',
           isCollapsed ? 'w-60 lg:w-16' : 'w-60',
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
         )}
@@ -114,7 +114,7 @@ export function Sidebar() {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto overflow-x-hidden py-4 px-2">
+        <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4 px-2">
           <div className="space-y-0.5">
             {navItems.map(item => {
               if (item.managerHidden && isManager) return null;
@@ -147,7 +147,7 @@ export function Sidebar() {
           onClick={toggleCollapsed}
           title={isCollapsed ? 'Mở rộng menu' : 'Thu gọn menu'}
           className={cn(
-            'hidden lg:flex items-center gap-2.5 mx-2 mb-2 px-3 py-2 rounded-md text-sm',
+            'hidden lg:flex flex-shrink-0 items-center gap-2.5 mx-2 mb-2 px-3 py-2 rounded-md text-sm',
             'text-[#A1A1AA] hover:bg-[#2C2C2E] hover:text-white transition-colors',
             centerOnCollapse,
           )}
@@ -159,7 +159,7 @@ export function Sidebar() {
         </button>
 
         {/* User footer */}
-        <div className="border-t border-[#2C2C2E] p-3">
+        <div className="border-t border-[#2C2C2E] p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex-shrink-0">
           <div className={cn('flex items-center gap-2.5', isCollapsed ? 'lg:flex-col lg:gap-2' : '')}>
             <Link
               href="/profile"

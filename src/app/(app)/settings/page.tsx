@@ -9,6 +9,7 @@ import { MapPin, Clock, Building2, Pencil, Trash2, Plus, CalendarOff, ChevronRig
 import { toast } from 'sonner';
 import { Department } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { getPosition, gpsHelpSteps } from '@/lib/geolocation';
 
 /* ─── Types ──────────────────────────────────────────────── */
 interface ClinicSettings { id?: number; clinicName: string; gpsLat: number; gpsLng: number; gpsRadiusM: number }
@@ -118,13 +119,23 @@ function ClinicForm({ qc, onClose }: { qc: any; onClose: () => void }) {
     onError: (e: any) => toast.error(e.response?.data?.message || 'Lỗi lưu'),
   });
 
-  const detectGps = () => {
-    if (!navigator.geolocation) return toast.error('Trình duyệt không hỗ trợ GPS');
-    navigator.geolocation.getCurrentPosition(
-      p => { setForm(f => ({ ...f, gpsLat: p.coords.latitude, gpsLng: p.coords.longitude })); toast.success('Đã lấy tọa độ'); },
-      () => toast.error('Không lấy được GPS'),
-      { enableHighAccuracy: true },
-    );
+  const [gpsBusy, setGpsBusy] = useState(false);
+
+  const detectGps = async () => {
+    setGpsBusy(true);
+    try {
+      const res = await getPosition();
+      if (res.ok) {
+        setForm(f => ({ ...f, gpsLat: res.pos.lat, gpsLng: res.pos.lng }));
+        toast.success(`Đã lấy toạ độ (sai số ~${Math.round(res.pos.accuracy)}m)`);
+        return;
+      }
+      // Nói rõ vì sao hỏng và phải làm gì, thay cho một dòng "Không lấy được GPS".
+      const help = gpsHelpSteps(res.reason);
+      toast.error(`${help.title}. ${help.steps[0]}`);
+    } finally {
+      setGpsBusy(false);
+    }
   };
 
   return (
@@ -152,8 +163,9 @@ function ClinicForm({ qc, onClose }: { qc: any; onClose: () => void }) {
           <input type="number" min={10} max={1000} value={form.gpsRadiusM} onChange={e => setForm(f => ({ ...f, gpsRadiusM: +e.target.value }))}
             className="field" />
         </div>
-        <button onClick={detectGps} className="btn btn-secondary text-indigo-600 border-indigo-200 hover:bg-indigo-50">
-          📍 Lấy GPS
+        <button onClick={detectGps} disabled={gpsBusy}
+          className="btn btn-secondary text-indigo-600 border-indigo-200 hover:bg-indigo-50">
+          📍 {gpsBusy ? 'Đang lấy…' : 'Lấy GPS'}
         </button>
       </div>
       <div className="flex justify-end gap-2 pt-1">

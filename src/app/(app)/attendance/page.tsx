@@ -13,6 +13,8 @@ import {
 import { toast } from 'sonner';
 import { SearchSelect } from '@/components/ui/search-select';
 import { MonthGrid } from '@/components/month-grid';
+import { GpsDialog } from '@/components/attendance/gps-dialog';
+import { getPosition, getGpsPermission, GpsFailReason } from '@/lib/geolocation';
 import { exportToExcel, stampedFileName } from '@/lib/export-excel';
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
@@ -45,6 +47,8 @@ export default function AttendancePage() {
   const [adjustForm, setAdjustForm] = useState({ logId: 0, field: 'CHECK_IN', requestedValue: '', reason: '' });
   const [filterUserId, setFilterUserId] = useState('');
   const [view, setView] = useState<'list' | 'grid'>('list');
+  // Hộp hướng dẫn GPS: null = đóng; reason = null nghĩa là đang ở bước xin quyền.
+  const [gpsDialog, setGpsDialog] = useState<{ reason: GpsFailReason | null; action: 'in' | 'out' } | null>(null);
 
   const isDirector = user?.role === 'GIAM_DOC';
   const isManager  = user?.role === 'GIAM_DOC' || user?.role === 'QUAN_LY';
@@ -82,31 +86,40 @@ export default function AttendancePage() {
     enabled: isManager,
   });
 
-  const doCheckIn = async () => {
-    setGpsLoading('in');
+  /**
+   * Chấm công. Trước khi gọi API phải có toạ độ, nên xử lý GPS theo trạng thái
+   * quyền: chưa hỏi thì giải thích rồi mới xin, bị chặn hoặc GPS tắt thì mở hộp
+   * hướng dẫn từng bước — không chỉ hiện một dòng lỗi rồi để người dùng tự đoán.
+   */
+  const runAttendance = async (action: 'in' | 'out', opts?: { skipPrompt?: boolean }) => {
+    setGpsLoading(action);
     try {
-      const pos = await getGPS();
-      await api.post('/attendance/check-in', { lat: pos.lat, lng: pos.lng });
+      if (!opts?.skipPrompt) {
+        const perm = await getGpsPermission();
+        if (perm === 'denied') { setGpsDialog({ reason: 'denied', action }); return; }
+        // Chưa hỏi lần nào: nói trước mục đích rồi mới bật hộp xin quyền của hệ thống,
+        // người dùng hiểu vì sao mới bấm Cho phép.
+        if (perm === 'prompt') { setGpsDialog({ reason: null, action }); return; }
+      }
+
+      const res = await getPosition();
+      if (!res.ok) { setGpsDialog({ reason: res.reason, action }); return; }
+
+      setGpsDialog(null);
+      const path = action === 'in' ? '/attendance/check-in' : '/attendance/check-out';
+      await api.post(path, { lat: res.pos.lat, lng: res.pos.lng });
       qc.invalidateQueries({ queryKey: ['attendance-today'] });
       qc.invalidateQueries({ queryKey: ['my-logs'] });
-      toast.success('Chấm công vào thành công!');
+      qc.invalidateQueries({ queryKey: ['all-logs'] });
+      toast.success(action === 'in' ? 'Chấm công vào thành công!' : 'Chấm công ra thành công!');
     } catch (e: any) {
+      // Lỗi từ API (ngoài phạm vi, đã chấm rồi...) thì báo bình thường.
       toast.error(e.response?.data?.message || e.message || 'Lỗi chấm công');
     } finally { setGpsLoading(null); }
   };
 
-  const doCheckOut = async () => {
-    setGpsLoading('out');
-    try {
-      const pos = await getGPS();
-      await api.post('/attendance/check-out', { lat: pos.lat, lng: pos.lng });
-      qc.invalidateQueries({ queryKey: ['attendance-today'] });
-      qc.invalidateQueries({ queryKey: ['my-logs'] });
-      toast.success('Chấm công ra thành công!');
-    } catch (e: any) {
-      toast.error(e.response?.data?.message || e.message || 'Lỗi chấm công');
-    } finally { setGpsLoading(null); }
-  };
+  const doCheckIn = () => runAttendance('in');
+  const doCheckOut = () => runAttendance('out');
 
   const submitAdj = useMutation({
     mutationFn: (data: any) => api.post('/attendance/adjustments', data),
@@ -448,6 +461,19 @@ export default function AttendancePage() {
         </div>
       </div>
 
+      <GpsDialog
+        open={!!gpsDialog}
+        reason={gpsDialog?.reason ?? null}
+        busy={!!gpsLoading}
+        onClose={() => setGpsDialog(null)}
+        onAction={() => {
+          const a = gpsDialog?.action ?? 'in';
+          // skipPrompt: đã qua bước giải thích, giờ gọi thẳng để trình duyệt
+          // bật hộp xin quyền (chỉ getCurrentPosition mới làm được việc đó).
+          runAttendance(a, { skipPrompt: true });
+        }}
+      />
+
       {/* Adjustment modal — GIAM_DOC only */}
       {showAdjust && isDirector && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -507,13 +533,3 @@ function toDatetimeLocal(utcStr?: string) {
   return vn.toISOString().slice(0, 16);
 }
 
-function getGPS(): Promise<{ lat: number; lng: number }> {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject(new Error('Thiết bị không hỗ trợ GPS'));
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      (err) => reject(new Error('Không lấy được vị trí GPS: ' + err.message)),
-      { enableHighAccuracy: true, timeout: 10000 },
-    );
-  });
-}
