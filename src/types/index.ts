@@ -42,6 +42,11 @@ export interface Task {
   status: TaskStatus;
   dueDate?: string;
   completedAt?: string;
+  /** Đánh giá của người giao việc, chỉ có nghĩa khi status = DONE. */
+  reviewStatus?: 'PENDING_REVIEW' | 'ACCEPTED' | 'RETURNED' | null;
+  reviewNote?: string | null;
+  reviewedBy?: User | null;
+  reviewedAt?: string | null;
   comments?: TaskComment[];
   attachments?: TaskAttachment[];
   createdAt: string;

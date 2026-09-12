@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TaskDetailDialog } from '@/components/tasks/task-detail-dialog';
 import { AssigneeStack, AssigneePicker } from '@/components/tasks/assignee-picker';
+import { ReviewBadge } from '@/components/tasks/review-badge';
 
 const STATUS_COLS: { key: TaskStatus; label: string; color: string }[] = [
   { key: 'TODO',        label: 'Cần làm',     color: 'bg-gray-100 text-gray-700' },
@@ -100,7 +101,7 @@ export default function TasksPage() {
         description={`${tasks.length} công việc được giao`}
         actions={
           <button onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 h-8 px-3 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium rounded-md transition-colors">
+            className="btn btn-primary">
             <Plus size={14} />
             Tạo mới
           </button>
@@ -175,6 +176,9 @@ export default function TasksPage() {
                           </span>
                         )}
                       </div>
+                      {task.reviewStatus && (
+                        <div className="mt-2"><ReviewBadge status={task.reviewStatus} /></div>
+                      )}
                       <AssigneeStack assignees={task.assignees} />
                     </div>
                   ))}
@@ -198,6 +202,8 @@ export default function TasksPage() {
         onClose={() => setSelectedTask(null)}
         users={users}
         canDelete={user?.role !== 'NHAN_VIEN'}
+        currentUserId={user?.id}
+        isManager={user?.role === 'GIAM_DOC' || user?.role === 'QUAN_LY'}
         onChanged={() => qc.invalidateQueries({ queryKey: ['my-tasks'] })}
       />
 
@@ -234,20 +240,20 @@ function CreateTaskDialog({ open, onClose, users, userRole, userId, onSubmit }: 
         <DialogHeader><DialogTitle>Tạo công việc mới</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           <div>
-            <label className="text-xs font-medium text-gray-700 block mb-1">Tiêu đề *</label>
+            <label className="lbl">Tiêu đề *</label>
             <input required value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-              className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400" />
+              className="field" />
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-700 block mb-1">Mô tả</label>
+            <label className="lbl">Mô tả</label>
             <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              rows={3} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400 resize-none" />
+              rows={3} className="field field-area" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-gray-700 block mb-1">Độ ưu tiên</label>
+              <label className="lbl">Độ ưu tiên</label>
               <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
-                className="w-full h-9 px-2 text-sm border border-gray-200 rounded-md">
+                className="field">
                 <option value="LOW">Thấp</option>
                 <option value="NORMAL">Bình thường</option>
                 <option value="HIGH">Cao</option>
@@ -255,14 +261,14 @@ function CreateTaskDialog({ open, onClose, users, userRole, userId, onSubmit }: 
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-700 block mb-1">Hạn</label>
+              <label className="lbl">Hạn</label>
               <input type="date" value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
-                className="w-full h-9 px-2 text-sm border border-gray-200 rounded-md" />
+                className="field" />
             </div>
           </div>
           {userRole !== 'NHAN_VIEN' && (
             <div>
-              <label className="text-xs font-medium text-gray-700 block mb-1">
+              <label className="lbl">
                 Giao cho <span className="text-gray-400 font-normal">(tìm và thêm nhiều người)</span>
               </label>
               <AssigneePicker users={users} value={form.assigneeIds}
@@ -271,11 +277,11 @@ function CreateTaskDialog({ open, onClose, users, userRole, userId, onSubmit }: 
           )}
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose}
-              className="h-8 px-4 text-sm text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">
+              className="btn btn-secondary">
               Hủy
             </button>
             <button type="submit"
-              className="h-8 px-4 text-sm text-white bg-indigo-500 rounded-md hover:bg-indigo-600">
+              className="btn btn-primary">
               Tạo
             </button>
           </div>

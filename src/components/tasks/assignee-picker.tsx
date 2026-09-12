@@ -175,7 +175,7 @@ export function AssigneePicker({
             onFocus={() => setOpen(true)}
             onKeyDown={onKeyDown}
             placeholder="Tìm và thêm người..."
-            className="w-full h-8 pl-7 pr-2 text-sm border border-gray-200 rounded-md bg-white outline-none focus:border-indigo-400"
+            className="field field-sm pl-7"
           />
         </div>
 

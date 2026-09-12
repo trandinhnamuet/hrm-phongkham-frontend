@@ -46,7 +46,7 @@ function AvatarSection({ user, onRefresh }: { user: any; onRefresh: () => Promis
   });
 
   return (
-    <section className="bg-white border border-gray-200 rounded-xl p-5">
+    <section className="surface p-5">
       <div className="flex items-center gap-5">
         {/* Avatar preview */}
         <div className="relative flex-shrink-0">
@@ -86,19 +86,19 @@ function AvatarSection({ user, onRefresh }: { user: any; onRefresh: () => Promis
               value={url}
               onChange={e => setUrl(e.target.value)}
               placeholder="https://example.com/avatar.jpg"
-              className="flex-1 h-9 px-3 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400"
+              className="field flex-1"
             />
             <button
               onClick={() => save.mutate()}
               disabled={save.isPending}
-              className="flex items-center gap-1.5 h-9 px-3 bg-indigo-500 text-white text-sm rounded-md hover:bg-indigo-600 disabled:opacity-60"
+              className="btn btn-primary"
             >
               <Save size={13} />
               {save.isPending ? '...' : 'Lưu'}
             </button>
             <button
               onClick={() => { setUrl(user.avatarUrl || ''); setEditing(false); }}
-              className="h-9 px-3 text-sm border border-gray-200 rounded-md hover:bg-gray-50"
+              className="btn btn-secondary"
             >
               Hủy
             </button>
@@ -138,7 +138,7 @@ function InfoSection({ user, onRefresh }: { user: any; onRefresh: () => Promise<
   });
 
   return (
-    <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+    <section className="surface overflow-hidden">
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
         <div className="flex items-center gap-2">
           <User size={15} className="text-indigo-500" />
@@ -147,7 +147,7 @@ function InfoSection({ user, onRefresh }: { user: any; onRefresh: () => Promise<
         {!editing && (
           <button
             onClick={() => setEditing(true)}
-            className="text-xs px-3 h-7 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100 text-gray-600"
+            className="btn btn-sm btn-secondary"
           >
             Chỉnh sửa
           </button>
@@ -173,7 +173,7 @@ function InfoSection({ user, onRefresh }: { user: any; onRefresh: () => Promise<
               <input
                 value={form.fullName}
                 onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))}
-                className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400"
+                className="field"
               />
             </div>
             <div>
@@ -182,21 +182,21 @@ function InfoSection({ user, onRefresh }: { user: any; onRefresh: () => Promise<
                 value={form.phone}
                 onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                 placeholder="0901234567"
-                className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400"
+                className="field"
               />
             </div>
             <div className="flex gap-2 justify-end pt-1">
               <button
                 type="button"
                 onClick={() => { setForm({ fullName: user.fullName, phone: user.phone || '' }); setEditing(false); }}
-                className="h-8 px-4 text-sm border border-gray-200 rounded-md hover:bg-gray-50"
+                className="btn btn-secondary"
               >
                 Hủy
               </button>
               <button
                 onClick={() => save.mutate()}
                 disabled={save.isPending}
-                className="flex items-center gap-1.5 h-8 px-4 text-sm bg-indigo-500 text-white rounded-md hover:bg-indigo-600 disabled:opacity-60"
+                className="btn btn-primary"
               >
                 <Save size={13} />
                 {save.isPending ? 'Đang lưu...' : 'Lưu thay đổi'}
@@ -228,7 +228,7 @@ function PasswordSection({ userId }: { userId: string }) {
   const canSubmit = form.newPassword.length >= 6 && form.newPassword === form.confirm;
 
   return (
-    <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+    <section className="surface overflow-hidden">
       <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
         <KeyRound size={15} className="text-indigo-500" />
         <h2 className="text-sm font-semibold text-gray-900">Đổi mật khẩu</h2>
@@ -241,7 +241,7 @@ function PasswordSection({ userId }: { userId: string }) {
             value={form.newPassword}
             onChange={e => setForm(f => ({ ...f, newPassword: e.target.value }))}
             placeholder="Tối thiểu 6 ký tự"
-            className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400"
+            className="field"
           />
         </div>
         <div>

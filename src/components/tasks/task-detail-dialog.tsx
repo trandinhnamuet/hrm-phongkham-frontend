@@ -4,10 +4,14 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { Task, TaskStatus, TaskPriority, User, TaskHistory } from '@/types';
-import { History, Calendar, User as UserIcon, Flag, Tag, Save } from 'lucide-react';
+import {
+  History, Calendar, User as UserIcon, Flag, Tag, Save,
+  ClipboardCheck, CircleCheck, Undo2,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { AssigneePicker } from '@/components/tasks/assignee-picker';
+import { ReviewBadge } from '@/components/tasks/review-badge';
 
 const TODAY = new Date().toISOString().split('T')[0];
 
@@ -82,14 +86,21 @@ interface Props {
   users?: User[];
   /** Cho phép xóa công việc (Giám đốc / Quản lý). */
   canDelete?: boolean;
+  /** Id người đang đăng nhập — để biết có phải người giao việc không. */
+  currentUserId?: string;
+  /** Giám đốc hoặc quản lý: được đánh giá công việc của cấp dưới. */
+  isManager?: boolean;
   /** Gọi sau khi lưu / xóa để parent làm mới danh sách của mình. */
   onChanged?: () => void;
 }
 
-export function TaskDetailDialog({ taskId, onClose, users = [], canDelete = false, onChanged }: Props) {
+export function TaskDetailDialog({
+  taskId, onClose, users = [], canDelete = false, currentUserId, isManager = false, onChanged,
+}: Props) {
   const qc = useQueryClient();
   const [editForm, setEditForm] = useState<EditForm | null>(null);
   const [newComment, setNewComment] = useState('');
+  const [reviewNote, setReviewNote] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
@@ -134,6 +145,7 @@ export function TaskDetailDialog({ taskId, onClose, users = [], canDelete = fals
     setShowHistory(false);
     setShowDeleteConfirm(false);
     setNewComment('');
+    setReviewNote('');
     setAssigneeSaving(false);
     setAssigneeSavedAt(null);
   }, [taskId]);
@@ -232,6 +244,23 @@ export function TaskDetailDialog({ taskId, onClose, users = [], canDelete = fals
     return () => clearTimeout(t);
   }, [assigneeSavedAt]);
 
+  const reviewTask = useMutation({
+    mutationFn: (d: { decision: 'ACCEPTED' | 'RETURNED'; note?: string }) =>
+      api.patch(`/tasks/${taskId}/review`, d),
+    onSuccess: (_res, vars) => {
+      qc.invalidateQueries({ queryKey: ['task', taskId] });
+      qc.invalidateQueries({ queryKey: ['task-history', taskId] });
+      onChanged?.();
+      setReviewNote('');
+      toast.success(vars.decision === 'ACCEPTED' ? 'Đã đánh giá Đạt' : 'Đã trả lại để nhân viên sửa');
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Không thể gửi đánh giá'),
+  });
+
+  // Người giao việc hoặc quản lý mới được đánh giá. Backend vẫn kiểm tra lại.
+  const canReview = !!(isManager
+    || (currentUserId && taskDetail?.createdBy?.id === currentUserId));
+
   const allowedStatuses: TaskStatus[] = taskDetail?.status === 'QUA_HAN'
     ? ['QUA_HAN', 'DONE']
     : ['TODO', 'IN_PROGRESS', 'DONE', 'CANCELLED'];
@@ -292,7 +321,7 @@ export function TaskDetailDialog({ taskId, onClose, users = [], canDelete = fals
                   </p>
                   <select value={editForm.status}
                     onChange={e => setEditForm(f => f ? { ...f, status: e.target.value } : f)}
-                    className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white outline-none focus:border-indigo-400">
+                    className="field field-sm">
                     {allowedStatuses.map(s => <option key={s} value={s}>{TASK_STATUS_META[s].label}</option>)}
                   </select>
                 </div>
@@ -304,7 +333,7 @@ export function TaskDetailDialog({ taskId, onClose, users = [], canDelete = fals
                   </p>
                   <select value={editForm.priority}
                     onChange={e => setEditForm(f => f ? { ...f, priority: e.target.value } : f)}
-                    className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white outline-none focus:border-indigo-400">
+                    className="field field-sm">
                     {Object.entries(TASK_PRIORITY_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                   </select>
                 </div>
@@ -351,6 +380,65 @@ export function TaskDetailDialog({ taskId, onClose, users = [], canDelete = fals
                 </div>
               </div>
 
+              {/* Đánh giá của người giao việc */}
+              {(taskDetail.status === 'DONE' || taskDetail.reviewStatus) && (
+                <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="flex items-center gap-1.5 text-xs font-semibold text-gray-600">
+                      <ClipboardCheck size={13} /> Đánh giá của người giao việc
+                    </p>
+                    <ReviewBadge status={taskDetail.reviewStatus} size="md" />
+                  </div>
+
+                  {taskDetail.reviewStatus && taskDetail.reviewStatus !== 'PENDING_REVIEW' && (
+                    <div>
+                      <p className="text-[11px] text-gray-400">
+                        {taskDetail.reviewedBy?.fullName || 'Người giao việc'}
+                        {taskDetail.reviewedAt ? ' · ' + timeAgo(taskDetail.reviewedAt) : ''}
+                      </p>
+                      {taskDetail.reviewNote && (
+                        <p className="mt-1.5 text-sm text-gray-700 whitespace-pre-wrap bg-white rounded-lg p-2.5 border border-gray-200">
+                          {taskDetail.reviewNote}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {canReview && taskDetail.status === 'DONE' ? (
+                    <div className="space-y-2">
+                      <textarea
+                        value={reviewNote}
+                        onChange={e => setReviewNote(e.target.value)}
+                        rows={2}
+                        placeholder="Góp ý cho nhân viên (bắt buộc khi trả lại)"
+                        className="field field-area"
+                      />
+                      <div className="flex flex-wrap gap-2 sm:justify-end">
+                        <button
+                          type="button"
+                          onClick={() => reviewTask.mutate({ decision: 'RETURNED', note: reviewNote })}
+                          disabled={reviewTask.isPending || !reviewNote.trim()}
+                          title={!reviewNote.trim() ? 'Cần ghi góp ý thì mới trả lại được' : undefined}
+                          className="btn btn-sm btn-secondary flex-1 sm:flex-none text-rose-600 border-rose-200 hover:bg-rose-50"
+                        >
+                          <Undo2 size={13} /> Trả lại để sửa
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => reviewTask.mutate({ decision: 'ACCEPTED', note: reviewNote })}
+                          disabled={reviewTask.isPending}
+                          className="btn btn-sm btn-primary flex-1 sm:flex-none"
+                        >
+                          <CircleCheck size={13} /> Đạt
+                        </button>
+                      </div>
+                    </div>
+                  ) : taskDetail.reviewStatus === 'PENDING_REVIEW' ? (
+                    <p className="text-xs text-gray-400">Đang chờ người giao việc đánh giá.</p>
+                  ) : null}
+                </div>
+              )}
+
               {/* Mô tả — có thể sửa */}
               <div>
                 <p className="text-xs font-medium text-gray-500 mb-2">Mô tả</p>
@@ -384,11 +472,11 @@ export function TaskDetailDialog({ taskId, onClose, users = [], canDelete = fals
                 <div className="flex gap-2">
                   <input value={newComment} onChange={e => setNewComment(e.target.value)}
                     placeholder="Thêm bình luận..."
-                    className="flex-1 h-9 px-3 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400"
+                    className="field flex-1"
                     onKeyDown={e => { if (e.key === 'Enter' && newComment.trim()) addComment.mutate(newComment.trim()); }}
                   />
                   <button onClick={() => newComment.trim() && addComment.mutate(newComment.trim())}
-                    className="h-9 px-4 bg-indigo-500 text-white text-sm rounded-md hover:bg-indigo-600">
+                    className="btn btn-primary">
                     Gửi
                   </button>
                 </div>

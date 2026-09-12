@@ -129,33 +129,33 @@ function ClinicForm({ qc, onClose }: { qc: any; onClose: () => void }) {
       <div>
         <label className="text-xs font-medium text-gray-700 block mb-1.5">Tên phòng khám</label>
         <input value={form.clinicName} onChange={e => setForm(f => ({ ...f, clinicName: e.target.value }))}
-          className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400" placeholder="Phòng Khám Nha Khoa..." />
+          className="field" placeholder="Phòng Khám Nha Khoa..." />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="text-xs font-medium text-gray-700 block mb-1.5">Vĩ độ</label>
           <input type="number" step="0.000001" value={form.gpsLat} onChange={e => setForm(f => ({ ...f, gpsLat: +e.target.value }))}
-            className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400" />
+            className="field" />
         </div>
         <div>
           <label className="text-xs font-medium text-gray-700 block mb-1.5">Kinh độ</label>
           <input type="number" step="0.000001" value={form.gpsLng} onChange={e => setForm(f => ({ ...f, gpsLng: +e.target.value }))}
-            className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400" />
+            className="field" />
         </div>
       </div>
       <div className="flex items-end gap-3">
         <div className="flex-1">
           <label className="text-xs font-medium text-gray-700 block mb-1.5">Bán kính chấm công (mét)</label>
           <input type="number" min={10} max={1000} value={form.gpsRadiusM} onChange={e => setForm(f => ({ ...f, gpsRadiusM: +e.target.value }))}
-            className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400" />
+            className="field" />
         </div>
         <button onClick={detectGps} className="h-9 px-3 text-sm text-indigo-600 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 rounded-md whitespace-nowrap">
           📍 Lấy GPS
         </button>
       </div>
       <div className="flex justify-end gap-2 pt-1">
-        <button onClick={onClose} className="h-8 px-4 text-sm border border-gray-200 rounded-md hover:bg-gray-50">Hủy</button>
-        <button onClick={() => save.mutate()} disabled={save.isPending} className="h-8 px-4 text-sm bg-indigo-500 text-white rounded-md hover:bg-indigo-600 disabled:opacity-60">
+        <button onClick={onClose} className="btn btn-secondary">Hủy</button>
+        <button onClick={() => save.mutate()} disabled={save.isPending} className="btn btn-primary">
           {save.isPending ? 'Đang lưu...' : 'Lưu'}
         </button>
       </div>
@@ -193,20 +193,20 @@ function DepartmentsPanel({ qc }: { qc: any }) {
   return (
     <div className="mt-2 space-y-3">
       <button onClick={() => { setShowNew(s => !s); setEditDept(null); setForm({ name: '', description: '' }); }}
-        className="text-xs px-3 h-7 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-md hover:bg-indigo-100 flex items-center gap-1">
+        className="btn btn-sm btn-secondary text-indigo-600 border-indigo-200 hover:bg-indigo-50">
         <Plus size={12} /> Thêm bộ phận
       </button>
 
       {showNew && (
         <div className="bg-gray-50 rounded-lg p-3 space-y-2 border border-gray-100">
           <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Tên bộ phận *"
-            className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md" />
+            className="field field-sm" />
           <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Mô tả"
-            className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md" />
+            className="field field-sm" />
           <div className="flex gap-2 justify-end">
-            <button onClick={() => setShowNew(false)} className="h-7 px-3 text-xs border border-gray-200 rounded-md hover:bg-gray-100">Hủy</button>
+            <button onClick={() => setShowNew(false)} className="btn btn-sm btn-secondary">Hủy</button>
             <button onClick={() => createDept.mutate(form)} disabled={!form.name || createDept.isPending}
-              className="h-7 px-3 text-xs bg-indigo-500 text-white rounded-md disabled:opacity-50">Thêm</button>
+              className="btn btn-sm btn-primary">Thêm</button>
           </div>
         </div>
       )}
@@ -219,13 +219,13 @@ function DepartmentsPanel({ qc }: { qc: any }) {
             {editDept?.id === dept.id ? (
               <div className="space-y-2">
                 <input value={editDept.name} onChange={e => setEditDept(d => d ? { ...d, name: e.target.value } : d)}
-                  className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md" />
+                  className="field field-sm" />
                 <input value={editDept.description || ''} onChange={e => setEditDept(d => d ? { ...d, description: e.target.value } : d)}
-                  placeholder="Mô tả" className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md" />
+                  placeholder="Mô tả" className="field field-sm" />
                 <div className="flex gap-2 justify-end">
-                  <button onClick={() => setEditDept(null)} className="h-7 px-3 text-xs border border-gray-200 rounded-md hover:bg-gray-100">Hủy</button>
+                  <button onClick={() => setEditDept(null)} className="btn btn-sm btn-secondary">Hủy</button>
                   <button onClick={() => updateDept.mutate({ id: dept.id, data: { name: editDept.name, description: editDept.description } })}
-                    disabled={updateDept.isPending} className="h-7 px-3 text-xs bg-indigo-500 text-white rounded-md disabled:opacity-50">Lưu</button>
+                    disabled={updateDept.isPending} className="btn btn-sm btn-primary">Lưu</button>
                 </div>
               </div>
             ) : (
@@ -286,19 +286,19 @@ function LeaveTypesPanel({ qc }: { qc: any }) {
   return (
     <div className="mt-2 space-y-3">
       <button onClick={() => { setShowNew(s => !s); setEditLt(null); setForm(emptyForm); }}
-        className="text-xs px-3 h-7 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-md hover:bg-indigo-100 flex items-center gap-1">
+        className="btn btn-sm btn-secondary text-indigo-600 border-indigo-200 hover:bg-indigo-50">
         <Plus size={12} /> Thêm loại nghỉ
       </button>
 
       {showNew && (
         <div className="bg-gray-50 rounded-lg p-3 space-y-2 border border-gray-100">
           <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Tên loại nghỉ *"
-            className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md" />
+            className="field field-sm" />
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-xs text-gray-600 block mb-1">Số ngày tối đa</label>
+              <label className="lbl">Số ngày tối đa</label>
               <input type="number" min={1} value={form.maxDays} onChange={e => setForm(f => ({ ...f, maxDays: e.target.value }))}
-                placeholder="Không giới hạn" className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md" />
+                placeholder="Không giới hạn" className="field field-sm" />
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -311,9 +311,9 @@ function LeaveTypesPanel({ qc }: { qc: any }) {
             ))}
           </div>
           <div className="flex gap-2 justify-end">
-            <button onClick={() => setShowNew(false)} className="h-7 px-3 text-xs border border-gray-200 rounded-md hover:bg-gray-100">Hủy</button>
+            <button onClick={() => setShowNew(false)} className="btn btn-sm btn-secondary">Hủy</button>
             <button onClick={submitCreate} disabled={!form.name || createLt.isPending}
-              className="h-7 px-3 text-xs bg-indigo-500 text-white rounded-md disabled:opacity-50">Thêm</button>
+              className="btn btn-sm btn-primary">Thêm</button>
           </div>
         </div>
       )}
@@ -326,11 +326,11 @@ function LeaveTypesPanel({ qc }: { qc: any }) {
             {editLt?.id === lt.id ? (
               <div className="space-y-2">
                 <input value={editLt.name} onChange={e => setEditLt(d => d ? { ...d, name: e.target.value } : d)}
-                  className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md" />
+                  className="field field-sm" />
                 <div>
-                  <label className="text-xs text-gray-600 block mb-1">Số ngày tối đa</label>
+                  <label className="lbl">Số ngày tối đa</label>
                   <input type="number" min={1} value={editLt.maxDays ?? ''} onChange={e => setEditLt(d => d ? { ...d, maxDays: e.target.value ? +e.target.value : undefined } : d)}
-                    placeholder="Không giới hạn" className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md" />
+                    placeholder="Không giới hạn" className="field field-sm" />
                 </div>
                 <div className="flex flex-wrap gap-3">
                   {([['deductsBalance', 'Trừ phép'], ['requiresDoc', 'Cần giấy tờ'], ['isPaid', 'Hưởng lương']] as [keyof LeaveType, string][]).map(([key, label]) => (
@@ -342,9 +342,9 @@ function LeaveTypesPanel({ qc }: { qc: any }) {
                   ))}
                 </div>
                 <div className="flex gap-2 justify-end">
-                  <button onClick={() => setEditLt(null)} className="h-7 px-3 text-xs border border-gray-200 rounded-md hover:bg-gray-100">Hủy</button>
+                  <button onClick={() => setEditLt(null)} className="btn btn-sm btn-secondary">Hủy</button>
                   <button onClick={() => updateLt.mutate({ id: lt.id, data: { name: editLt.name, maxDays: editLt.maxDays ?? null, deductsBalance: editLt.deductsBalance, requiresDoc: editLt.requiresDoc, isPaid: editLt.isPaid } })}
-                    disabled={updateLt.isPending} className="h-7 px-3 text-xs bg-indigo-500 text-white rounded-md disabled:opacity-50">Lưu</button>
+                    disabled={updateLt.isPending} className="btn btn-sm btn-primary">Lưu</button>
                 </div>
               </div>
             ) : (
@@ -403,7 +403,7 @@ function ShiftsPanel({ qc }: { qc: any }) {
   return (
     <div className="mt-2 space-y-3">
       <button onClick={() => { setShowNew(s => !s); setEditShift(null); }}
-        className="text-xs px-3 h-7 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-md hover:bg-indigo-100 flex items-center gap-1">
+        className="btn btn-sm btn-secondary text-indigo-600 border-indigo-200 hover:bg-indigo-50">
         <Plus size={12} /> Thêm ca
       </button>
 
@@ -411,9 +411,9 @@ function ShiftsPanel({ qc }: { qc: any }) {
         <div className="bg-gray-50 rounded-lg p-3 space-y-3 border border-gray-100">
           <ShiftFields value={newShift} onChange={setNewShift} />
           <div className="flex gap-2 justify-end">
-            <button onClick={() => setShowNew(false)} className="h-7 px-3 text-xs border border-gray-200 rounded-md hover:bg-gray-100">Hủy</button>
+            <button onClick={() => setShowNew(false)} className="btn btn-sm btn-secondary">Hủy</button>
             <button onClick={() => createShift.mutate(newShift)} disabled={!newShift.code || !newShift.name || createShift.isPending}
-              className="h-7 px-3 text-xs bg-indigo-500 text-white rounded-md disabled:opacity-50">Tạo ca</button>
+              className="btn btn-sm btn-primary">Tạo ca</button>
           </div>
         </div>
       )}
@@ -427,7 +427,7 @@ function ShiftsPanel({ qc }: { qc: any }) {
               <div className="space-y-3">
                 <ShiftFields value={editShift} onChange={v => setEditShift(v as Shift)} />
                 <div className="flex gap-2 justify-end">
-                  <button onClick={() => setEditShift(null)} className="h-7 px-3 text-xs border border-gray-200 rounded-md hover:bg-gray-100">Hủy</button>
+                  <button onClick={() => setEditShift(null)} className="btn btn-sm btn-secondary">Hủy</button>
                   <button
                     onClick={() => updateShift.mutate({
                       id: shift.id,
@@ -441,7 +441,7 @@ function ShiftsPanel({ qc }: { qc: any }) {
                       },
                     })}
                     disabled={!editShift.code || !editShift.name || updateShift.isPending}
-                    className="h-7 px-3 text-xs bg-indigo-500 text-white rounded-md disabled:opacity-50">Lưu</button>
+                    className="btn btn-sm btn-primary">Lưu</button>
                 </div>
               </div>
             ) : (
@@ -490,23 +490,23 @@ function ShiftFields({ value, onChange }: { value: any; onChange: (v: any) => vo
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-xs text-gray-600 block mb-1">Mã ca</label>
+          <label className="lbl">Mã ca</label>
           <input value={value.code} onChange={e => set('code', e.target.value.toUpperCase())} placeholder="CA_SANG"
-            className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md font-mono" />
+            className="field field-sm font-mono" />
         </div>
         <div>
-          <label className="text-xs text-gray-600 block mb-1">Tên ca</label>
+          <label className="lbl">Tên ca</label>
           <input value={value.name} onChange={e => set('name', e.target.value)} placeholder="Ca sáng"
-            className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md" />
+            className="field field-sm" />
         </div>
       </div>
       <div className="grid grid-cols-4 gap-2">
         {([['startTime', 'Bắt đầu', 'time'], ['endTime', 'Kết thúc', 'time'], ['breakMinutes', 'Nghỉ (ph)', 'number'], ['graceMinutes', 'Gia hạn (ph)', 'number']] as [string, string, string][]).map(([key, label, type]) => (
           <div key={key}>
-            <label className="text-xs text-gray-600 block mb-1">{label}</label>
+            <label className="lbl">{label}</label>
             <input type={type} min={0} value={value[key] ?? ''}
               onChange={e => set(key, numeric[key] ? +e.target.value : e.target.value)}
-              className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md" />
+              className="field field-sm" />
           </div>
         ))}
       </div>

@@ -43,14 +43,24 @@ export default function LeavePage() {
   const { data: allRequests = [] } = useQuery<LeaveRequest[]>({
     queryKey: ['all-leave'],
     queryFn: () => api.get('/leave/requests').then(r => r.data),
-    enabled: isManager && activeTab === 'all',
+    // Chay ca khi dang o tab "Don cua toi" de badge so don cho duyet luon dung
+    // va khi chuyen tab khong bi trong mot nhip.
+    enabled: isManager,
   });
+
+  // Ba mutation duoi deu lam moi ca 3 nguon: don cua toi, tat ca don, va so phep.
+  // Truoc day moi cai chi lam moi mot phan nen vi du giam doc tao don khi dang o
+  // tab "Tat ca don" thi don moi khong hien ra, phai F5.
+  const refreshLeave = () => {
+    qc.invalidateQueries({ queryKey: ['my-leave'] });
+    qc.invalidateQueries({ queryKey: ['all-leave'] });
+    qc.invalidateQueries({ queryKey: ['my-balance'] });
+  };
 
   const createReq = useMutation({
     mutationFn: (data: any) => api.post('/leave/requests', data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['my-leave'] });
-      qc.invalidateQueries({ queryKey: ['my-balance'] });
+      refreshLeave();
       setShowCreate(false);
       toast.success('Đã gửi đơn nghỉ tuần');
     },
@@ -61,7 +71,7 @@ export default function LeavePage() {
     mutationFn: ({ id, status, reviewNote }: { id: number; status: string; reviewNote?: string }) =>
       api.patch(`/leave/requests/${id}/review`, { status, reviewNote }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['all-leave'] });
+      refreshLeave();
       toast.success('Đã xử lý đơn nghỉ tuần');
     },
     onError: (e: any) => toast.error(e.response?.data?.message || 'Lỗi xử lý'),
@@ -70,8 +80,7 @@ export default function LeavePage() {
   const cancelReq = useMutation({
     mutationFn: (id: number) => api.patch(`/leave/requests/${id}/cancel`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['my-leave'] });
-      qc.invalidateQueries({ queryKey: ['my-balance'] });
+      refreshLeave();
       toast.success('Đã hủy đơn');
     },
   });
@@ -91,7 +100,7 @@ export default function LeavePage() {
         description="Quản lý đơn nghỉ tuần"
         actions={
           <button onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 h-8 px-3 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium rounded-md transition-colors">
+            className="btn btn-primary">
             <Plus size={14} /> Đăng ký nghỉ
           </button>
         }
@@ -100,17 +109,17 @@ export default function LeavePage() {
       <div className="flex-1 p-6 space-y-5">
         {/* Balance cards */}
         <div className="grid grid-cols-3 gap-4">
-          <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className="surface p-4">
             <p className="text-xs text-gray-500 mb-1">Phép tháng này</p>
             <p className="text-2xl font-semibold text-gray-900">{remaining.toFixed(1)}</p>
             <p className="text-xs text-gray-400 mt-0.5">ngày còn lại / {monthlyBalance?.entitledDays || 4} ngày</p>
           </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className="surface p-4">
             <p className="text-xs text-gray-500 mb-1">Đã sử dụng</p>
             <p className="text-2xl font-semibold text-green-600">{+(monthlyBalance?.usedDays || 0)}</p>
             <p className="text-xs text-gray-400 mt-0.5">ngày trong tháng này</p>
           </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className="surface p-4">
             <p className="text-xs text-gray-500 mb-1">Đang chờ duyệt</p>
             <p className="text-2xl font-semibold text-amber-600">{+(monthlyBalance?.pendingDays || 0)}</p>
             <p className="text-xs text-gray-400 mt-0.5">ngày đang chờ</p>
@@ -137,7 +146,7 @@ export default function LeavePage() {
         )}
 
         {/* Request list */}
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="surface overflow-hidden">
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50">
@@ -233,24 +242,24 @@ function CreateLeaveForm({ types, onSubmit, onCancel }: { types: LeaveType[]; on
     <form onSubmit={(e) => { e.preventDefault(); onSubmit({ ...form, leaveTypeId: +form.leaveTypeId }); }}
       className="space-y-4 mt-2">
       <div>
-        <label className="text-xs font-medium text-gray-700 block mb-1">Loại nghỉ tuần *</label>
+        <label className="lbl">Loại nghỉ tuần *</label>
         <select required value={form.leaveTypeId} onChange={e => setForm(f => ({ ...f, leaveTypeId: e.target.value }))}
-          className="w-full h-9 px-2 text-sm border border-gray-200 rounded-md">
+          className="field">
           <option value="">-- Chọn loại --</option>
           {types.filter(t => t.isActive !== false).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-xs font-medium text-gray-700 block mb-1">Từ ngày *</label>
+          <label className="lbl">Từ ngày *</label>
           <input required type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))}
-            className="w-full h-9 px-2 text-sm border border-gray-200 rounded-md" />
+            className="field" />
         </div>
         <div>
-          <label className="text-xs font-medium text-gray-700 block mb-1">Đến ngày *</label>
+          <label className="lbl">Đến ngày *</label>
           <input required type="date" value={form.endDate} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))}
             min={form.startDate}
-            className="w-full h-9 px-2 text-sm border border-gray-200 rounded-md" />
+            className="field" />
         </div>
       </div>
       {totalDays > 0 && (() => {
@@ -266,15 +275,15 @@ function CreateLeaveForm({ types, onSubmit, onCancel }: { types: LeaveType[]; on
         );
       })()}
       <div>
-        <label className="text-xs font-medium text-gray-700 block mb-1">Lý do *</label>
+        <label className="lbl">Lý do *</label>
         <textarea required value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
-          rows={3} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md resize-none" />
+          rows={3} className="field field-area" />
       </div>
       <div className="flex justify-end gap-2 pt-1">
         <button type="button" onClick={onCancel}
-          className="h-8 px-4 text-sm border border-gray-200 rounded-md hover:bg-gray-50">Hủy</button>
+          className="btn btn-secondary">Hủy</button>
         <button type="submit"
-          className="h-8 px-4 text-sm bg-indigo-500 text-white rounded-md hover:bg-indigo-600">Gửi đơn</button>
+          className="btn btn-primary">Gửi đơn</button>
       </div>
     </form>
   );

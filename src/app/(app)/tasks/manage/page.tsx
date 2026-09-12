@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TaskDetailDialog } from '@/components/tasks/task-detail-dialog';
 import { AssigneeStack, AssigneePicker } from '@/components/tasks/assignee-picker';
+import { ReviewBadge } from '@/components/tasks/review-badge';
 
 /* ─── Constants ──────────────────────────────────────────── */
 const TODAY = new Date().toISOString().split('T')[0];
@@ -124,7 +125,7 @@ export default function ManageTasksPage() {
         description={`${filteredTasks.length} công việc${filterDepartment ? ` • ${departments.find(d => String(d.id) === filterDepartment)?.name}` : ' toàn công ty'}`}
         actions={
           <button onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 h-8 px-3 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium rounded-md transition-colors">
+            className="btn btn-primary">
             <Plus size={14} /> Tạo mới
           </button>
         }
@@ -141,7 +142,7 @@ export default function ManageTasksPage() {
         <span className="w-px h-4 bg-gray-200 mx-1" />
         <div className="relative">
           <select value={filterDepartment} onChange={e => { setFilterDepartment(e.target.value); setFilterAssignee(''); }}
-            className="h-7 pl-2 pr-7 text-xs border border-gray-200 rounded-md appearance-none bg-white text-gray-600 outline-none focus:border-indigo-400">
+            className="field field-sm w-auto pr-7 appearance-none">
             <option value="">Tất cả bộ phận</option>
             {departments.filter(d => d.isActive).map(d => <option key={d.id} value={String(d.id)}>{d.name}</option>)}
           </select>
@@ -149,7 +150,7 @@ export default function ManageTasksPage() {
         </div>
         <div className="relative">
           <select value={filterAssignee} onChange={e => setFilterAssignee(e.target.value)}
-            className="h-7 pl-2 pr-7 text-xs border border-gray-200 rounded-md appearance-none bg-white text-gray-600 outline-none focus:border-indigo-400">
+            className="field field-sm w-auto pr-7 appearance-none">
             <option value="">Tất cả nhân viên</option>
             {usersInDept.map((u: User) => <option key={u.id} value={u.id}>{u.fullName}</option>)}
           </select>
@@ -202,6 +203,9 @@ export default function ManageTasksPage() {
                           </span>
                         )}
                       </div>
+                      {task.reviewStatus && (
+                        <div className="mt-2"><ReviewBadge status={task.reviewStatus} /></div>
+                      )}
                       <AssigneeStack assignees={task.assignees} />
                     </div>
                   ))}
@@ -223,6 +227,8 @@ export default function ManageTasksPage() {
         onClose={() => setSelectedTask(null)}
         users={users}
         canDelete
+        currentUserId={user?.id}
+        isManager
         onChanged={() => qc.invalidateQueries({ queryKey: ['all-tasks'] })}
       />
 
@@ -253,17 +259,17 @@ function CreateTaskDialog({ open, onClose, users, onSubmit }: any) {
         <DialogHeader><DialogTitle>Tạo công việc mới</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           <div>
-            <label className="text-xs font-medium text-gray-700 block mb-1">Tiêu đề *</label>
+            <label className="lbl">Tiêu đề *</label>
             <input required value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-              className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400" />
+              className="field" />
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-700 block mb-1">Mô tả</label>
+            <label className="lbl">Mô tả</label>
             <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              rows={3} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400 resize-none" />
+              rows={3} className="field field-area" />
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-700 block mb-1">
+            <label className="lbl">
               Giao cho <span className="text-gray-400 font-normal">(tìm và thêm nhiều người)</span>
             </label>
             <AssigneePicker users={users} value={form.assigneeIds}
@@ -271,9 +277,9 @@ function CreateTaskDialog({ open, onClose, users, onSubmit }: any) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-gray-700 block mb-1">Độ ưu tiên</label>
+              <label className="lbl">Độ ưu tiên</label>
               <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
-                className="w-full h-9 px-2 text-sm border border-gray-200 rounded-md">
+                className="field">
                 <option value="LOW">Thấp</option>
                 <option value="NORMAL">Bình thường</option>
                 <option value="HIGH">Cao</option>
@@ -281,16 +287,16 @@ function CreateTaskDialog({ open, onClose, users, onSubmit }: any) {
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-700 block mb-1">Hạn hoàn thành</label>
+              <label className="lbl">Hạn hoàn thành</label>
               <input type="date" min={TODAY} value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
-                className="w-full h-9 px-2 text-sm border border-gray-200 rounded-md" />
+                className="field" />
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose}
-              className="h-8 px-4 text-sm text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Hủy</button>
+              className="btn btn-secondary">Hủy</button>
             <button type="submit"
-              className="h-8 px-4 text-sm text-white bg-indigo-500 rounded-md hover:bg-indigo-600">Tạo</button>
+              className="btn btn-primary">Tạo</button>
           </div>
         </form>
       </DialogContent>

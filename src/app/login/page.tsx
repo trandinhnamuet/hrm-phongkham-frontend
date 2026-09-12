@@ -48,7 +48,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your@email.com"
                 required
-                className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all"
+                className="field"
               />
             </div>
             <div>
@@ -59,13 +59,13 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all"
+                className="field"
               />
             </div>
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-9 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+              className="btn btn-primary w-full mt-2"
             >
               {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
             </button>

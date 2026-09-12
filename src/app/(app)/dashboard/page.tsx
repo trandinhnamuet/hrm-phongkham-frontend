@@ -174,7 +174,7 @@ function DirectorDashboard({ user, greeting, now }: { user: any; greeting: strin
 
       {/* Pending leave quick-review */}
       {pendingLeave.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="surface overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <AlertTriangle size={14} className="text-amber-500" />
@@ -302,7 +302,7 @@ function StaffDashboard({ user, greeting, now }: { user: any; greeting: string; 
       </div>
 
       {/* Check-in / Check-out card */}
-      <div className="bg-white border border-gray-200 rounded-xl p-5">
+      <div className="surface p-5">
         <div className="flex items-center justify-between mb-3">
           <div>
             <p className="text-sm font-medium text-gray-900">

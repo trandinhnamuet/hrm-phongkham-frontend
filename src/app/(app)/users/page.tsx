@@ -72,7 +72,7 @@ export default function UsersPage() {
         actions={
           me?.role === 'GIAM_DOC' && (
             <button onClick={() => setShowCreate(true)}
-              className="flex items-center gap-1.5 h-8 px-3 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium rounded-md transition-colors">
+              className="btn btn-primary">
               <Plus size={14} /> Thêm NV
             </button>
           )
@@ -88,13 +88,13 @@ export default function UsersPage() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Tìm nhân viên..."
-              className="h-9 pl-8 pr-3 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400 w-52"
+              className="field pl-8 w-52"
             />
           </div>
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value as any)}
-            className="h-9 px-2 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400 text-gray-700">
+            className="field w-auto">
             <option value="ACTIVE">Đang làm</option>
             <option value="RESIGNED">Đã nghỉ</option>
             <option value="">Tất cả trạng thái</option>
@@ -102,7 +102,7 @@ export default function UsersPage() {
           <select
             value={roleFilter}
             onChange={e => setRoleFilter(e.target.value)}
-            className="h-9 px-2 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400 text-gray-700">
+            className="field w-auto">
             <option value="">Tất cả vai trò</option>
             <option value="GIAM_DOC">Giám đốc</option>
             <option value="QUAN_LY">Quản lý</option>
@@ -111,7 +111,7 @@ export default function UsersPage() {
           <select
             value={deptFilter}
             onChange={e => setDeptFilter(e.target.value)}
-            className="h-9 px-2 text-sm border border-gray-200 rounded-md outline-none focus:border-indigo-400 text-gray-700">
+            className="field w-auto">
             <option value="">Tất cả bộ phận</option>
             {departments.filter(d => d.isActive).map(d => (
               <option key={d.id} value={String(d.id)}>{d.name}</option>
@@ -120,14 +120,14 @@ export default function UsersPage() {
           {(statusFilter !== 'ACTIVE' || roleFilter || deptFilter || search) && (
             <button
               onClick={() => { setStatusFilter('ACTIVE'); setRoleFilter(''); setDeptFilter(''); setSearch(''); }}
-              className="h-9 px-3 text-sm text-gray-500 hover:text-gray-700 border border-gray-200 rounded-md hover:bg-gray-50">
+              className="btn btn-secondary">
               Đặt lại
             </button>
           )}
         </div>
 
         {/* Table */}
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="surface overflow-hidden">
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50">
@@ -277,7 +277,7 @@ function ChangePasswordForm({ user, onDone }: { user: User; onDone: () => void }
       </div>
 
       <div>
-        <label className="text-xs font-medium text-gray-700 block mb-1">Mật khẩu mới *</label>
+        <label className="lbl">Mật khẩu mới *</label>
         <div className="relative">
           <input
             required
@@ -302,7 +302,7 @@ function ChangePasswordForm({ user, onDone }: { user: User; onDone: () => void }
       </div>
 
       <div>
-        <label className="text-xs font-medium text-gray-700 block mb-1">Nhập lại mật khẩu *</label>
+        <label className="lbl">Nhập lại mật khẩu *</label>
         <input
           required
           type={show ? 'text' : 'password'}
@@ -321,11 +321,11 @@ function ChangePasswordForm({ user, onDone }: { user: User; onDone: () => void }
 
       <div className="flex justify-end gap-2 pt-1">
         <button type="button" onClick={onDone}
-          className="h-8 px-4 text-sm text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">
+          className="btn btn-secondary">
           Hủy
         </button>
         <button type="submit" disabled={!canSave}
-          className="h-8 px-4 text-sm text-white bg-indigo-500 rounded-md hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed">
+          className="btn btn-primary">
           {save.isPending ? 'Đang lưu...' : 'Đổi mật khẩu'}
         </button>
       </div>
@@ -338,30 +338,30 @@ function UserForm({ onSubmit, onCancel, departments }: { onSubmit: any; onCancel
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSubmit({ ...f, departmentId: f.departmentId ? Number(f.departmentId) : undefined }); }} className="space-y-3 mt-2">
       <div>
-        <label className="text-xs font-medium text-gray-700 block mb-1">Họ tên *</label>
+        <label className="lbl">Họ tên *</label>
         <input required value={f.fullName} onChange={e => setF(p => ({ ...p, fullName: e.target.value }))}
-          className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md" />
+          className="field" />
       </div>
       <div>
-        <label className="text-xs font-medium text-gray-700 block mb-1">Email *</label>
+        <label className="lbl">Email *</label>
         <input required type="email" value={f.email} onChange={e => setF(p => ({ ...p, email: e.target.value }))}
-          className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md" />
+          className="field" />
       </div>
       <div>
-        <label className="text-xs font-medium text-gray-700 block mb-1">Mật khẩu *</label>
+        <label className="lbl">Mật khẩu *</label>
         <input required type="password" value={f.password} onChange={e => setF(p => ({ ...p, password: e.target.value }))}
-          className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md" />
+          className="field" />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-xs font-medium text-gray-700 block mb-1">Điện thoại</label>
+          <label className="lbl">Điện thoại</label>
           <input value={f.phone} onChange={e => setF(p => ({ ...p, phone: e.target.value }))}
-            className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md" />
+            className="field" />
         </div>
         <div>
-          <label className="text-xs font-medium text-gray-700 block mb-1">Vai trò</label>
+          <label className="lbl">Vai trò</label>
           <select value={f.role} onChange={e => setF(p => ({ ...p, role: e.target.value as UserRole }))}
-            className="w-full h-9 px-2 text-sm border border-gray-200 rounded-md">
+            className="field">
             <option value="NHAN_VIEN">Nhân viên</option>
             <option value="QUAN_LY">Quản lý</option>
             <option value="GIAM_DOC">Giám đốc</option>
@@ -370,15 +370,15 @@ function UserForm({ onSubmit, onCancel, departments }: { onSubmit: any; onCancel
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-xs font-medium text-gray-700 block mb-1">Vị trí</label>
+          <label className="lbl">Vị trí</label>
           <input value={f.positionTitle} onChange={e => setF(p => ({ ...p, positionTitle: e.target.value }))}
             placeholder="Bác sĩ chính, Lễ tân..."
-            className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md" />
+            className="field" />
         </div>
         <div>
-          <label className="text-xs font-medium text-gray-700 block mb-1">Bộ phận</label>
+          <label className="lbl">Bộ phận</label>
           <select value={f.departmentId} onChange={e => setF(p => ({ ...p, departmentId: e.target.value }))}
-            className="w-full h-9 px-2 text-sm border border-gray-200 rounded-md">
+            className="field">
             <option value="">— Chưa chọn —</option>
             {departments.filter(d => d.isActive).map(d => (
               <option key={d.id} value={d.id}>{d.name}</option>
@@ -387,8 +387,8 @@ function UserForm({ onSubmit, onCancel, departments }: { onSubmit: any; onCancel
         </div>
       </div>
       <div className="flex justify-end gap-2 pt-1">
-        <button type="button" onClick={onCancel} className="h-8 px-4 text-sm border border-gray-200 rounded-md hover:bg-gray-50">Hủy</button>
-        <button type="submit" className="h-8 px-4 text-sm bg-indigo-500 text-white rounded-md hover:bg-indigo-600">Thêm</button>
+        <button type="button" onClick={onCancel} className="btn btn-secondary">Hủy</button>
+        <button type="submit" className="btn btn-primary">Thêm</button>
       </div>
     </form>
   );
@@ -422,20 +422,20 @@ function EditUserForm({ user, onSubmit, onCancel, departments }: { user: User; o
   return (
     <form onSubmit={handleSubmit} className="space-y-3 mt-2">
       <div>
-        <label className="text-xs font-medium text-gray-700 block mb-1">Họ tên</label>
+        <label className="lbl">Họ tên</label>
         <input value={f.fullName} onChange={e => setF(p => ({ ...p, fullName: e.target.value }))}
-          className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md" />
+          className="field" />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-xs font-medium text-gray-700 block mb-1">Điện thoại</label>
+          <label className="lbl">Điện thoại</label>
           <input value={f.phone} onChange={e => setF(p => ({ ...p, phone: e.target.value }))}
-            className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md" />
+            className="field" />
         </div>
         <div>
-          <label className="text-xs font-medium text-gray-700 block mb-1">Vai trò</label>
+          <label className="lbl">Vai trò</label>
           <select value={f.role} onChange={e => setF(p => ({ ...p, role: e.target.value as UserRole }))}
-            className="w-full h-9 px-2 text-sm border border-gray-200 rounded-md">
+            className="field">
             <option value="NHAN_VIEN">Nhân viên</option>
             <option value="QUAN_LY">Quản lý</option>
             <option value="GIAM_DOC">Giám đốc</option>
@@ -444,14 +444,14 @@ function EditUserForm({ user, onSubmit, onCancel, departments }: { user: User; o
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-xs font-medium text-gray-700 block mb-1">Vị trí</label>
+          <label className="lbl">Vị trí</label>
           <input value={f.positionTitle} onChange={e => setF(p => ({ ...p, positionTitle: e.target.value }))}
-            className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md" />
+            className="field" />
         </div>
         <div>
-          <label className="text-xs font-medium text-gray-700 block mb-1">Bộ phận (của nhân viên)</label>
+          <label className="lbl">Bộ phận (của nhân viên)</label>
           <select value={f.departmentId} onChange={e => setF(p => ({ ...p, departmentId: e.target.value }))}
-            className="w-full h-9 px-2 text-sm border border-gray-200 rounded-md">
+            className="field">
             <option value="">— Chưa chọn —</option>
             {departments.filter(d => d.isActive).map(d => (
               <option key={d.id} value={d.id}>{d.name}</option>
@@ -487,8 +487,8 @@ function EditUserForm({ user, onSubmit, onCancel, departments }: { user: User; o
       )}
 
       <div className="flex justify-end gap-2 pt-1">
-        <button type="button" onClick={onCancel} className="h-8 px-4 text-sm border border-gray-200 rounded-md hover:bg-gray-50">Hủy</button>
-        <button type="submit" className="h-8 px-4 text-sm bg-indigo-500 text-white rounded-md hover:bg-indigo-600">Lưu</button>
+        <button type="button" onClick={onCancel} className="btn btn-secondary">Hủy</button>
+        <button type="submit" className="btn btn-primary">Lưu</button>
       </div>
     </form>
   );

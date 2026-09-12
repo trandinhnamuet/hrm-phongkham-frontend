@@ -137,17 +137,17 @@ export default function AttendancePage() {
         {/* ── Director: today's summary ── */}
         {isDirector && (
           <div className="grid grid-cols-3 gap-4">
-            <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="surface p-4">
               <p className="text-xs text-gray-500 mb-1">Có mặt hôm nay</p>
               <p className="text-2xl font-semibold text-green-600">{presentCount}</p>
               <p className="text-xs text-gray-400 mt-0.5">nhân viên</p>
             </div>
-            <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="surface p-4">
               <p className="text-xs text-gray-500 mb-1">Đi muộn hôm nay</p>
               <p className="text-2xl font-semibold text-amber-600">{lateCount}</p>
               <p className="text-xs text-gray-400 mt-0.5">nhân viên</p>
             </div>
-            <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="surface p-4">
               <p className="text-xs text-gray-500 mb-1">Vắng hôm nay</p>
               <p className="text-2xl font-semibold text-red-500">{absentCount}</p>
               <p className="text-xs text-gray-400 mt-0.5">nhân viên</p>
@@ -157,7 +157,7 @@ export default function AttendancePage() {
 
         {/* ── Employee / Manager: personal check-in card ── */}
         {!isDirector && (
-          <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <div className="surface p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <p className="text-sm font-medium text-gray-900">
@@ -233,7 +233,7 @@ export default function AttendancePage() {
         )}
 
         {/* ── Log table ── */}
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="surface overflow-hidden">
           <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 gap-3">
             <div className="flex items-center gap-2">
               {isDirector && <Users size={14} className="text-gray-400" />}
@@ -251,12 +251,12 @@ export default function AttendancePage() {
                 />
               )}
               <select value={viewMonth} onChange={e => setViewMonth(+e.target.value)}
-                className="h-7 px-2 text-xs border border-gray-200 rounded-md">
+                className="field field-sm w-auto">
                 {Array.from({ length: 12 }, (_, i) => i + 1).map(m =>
                   <option key={m} value={m}>Tháng {m}</option>)}
               </select>
               <select value={viewYear} onChange={e => setViewYear(+e.target.value)}
-                className="h-7 px-2 text-xs border border-gray-200 rounded-md">
+                className="field field-sm w-auto">
                 {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
@@ -321,7 +321,7 @@ export default function AttendancePage() {
             )}
             <div className="space-y-3">
               <div>
-                <label className="text-xs font-medium text-gray-700 block mb-1">Trường cần sửa</label>
+                <label className="lbl">Trường cần sửa</label>
                 <select value={adjustForm.field} onChange={e => {
                     const f = e.target.value;
                     const val = f === 'CHECK_IN' ? toDatetimeLocal(adjustLog?.checkInAt)
@@ -329,30 +329,30 @@ export default function AttendancePage() {
                               : adjustLog?.status ?? '';
                     setAdjustForm(prev => ({ ...prev, field: f, requestedValue: val }));
                   }}
-                  className="w-full h-9 px-2 text-sm border border-gray-200 rounded-md">
+                  className="field">
                   <option value="CHECK_IN">Giờ vào</option>
                   <option value="CHECK_OUT">Giờ ra</option>
                   <option value="STATUS">Trạng thái</option>
                 </select>
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-700 block mb-1">Giá trị mới</label>
+                <label className="lbl">Giá trị mới</label>
                 <input type={adjustForm.field === 'STATUS' ? 'text' : 'datetime-local'}
                   value={adjustForm.requestedValue}
                   onChange={e => setAdjustForm(f => ({ ...f, requestedValue: e.target.value }))}
-                  className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md" />
+                  className="field" />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-700 block mb-1">Lý do</label>
+                <label className="lbl">Lý do</label>
                 <textarea value={adjustForm.reason} onChange={e => setAdjustForm(f => ({ ...f, reason: e.target.value }))}
-                  rows={2} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md resize-none" />
+                  rows={2} className="field field-area" />
               </div>
             </div>
             <div className="flex gap-2 mt-4 justify-end">
               <button onClick={() => { setShowAdjust(false); setAdjustLog(null); }}
-                className="h-8 px-4 text-sm border border-gray-200 rounded-md hover:bg-gray-50">Hủy</button>
+                className="btn btn-secondary">Hủy</button>
               <button onClick={() => submitAdj.mutate(adjustForm)}
-                className="h-8 px-4 text-sm bg-indigo-500 text-white rounded-md hover:bg-indigo-600">Gửi</button>
+                className="btn btn-primary">Gửi</button>
             </div>
           </div>
         </div>
