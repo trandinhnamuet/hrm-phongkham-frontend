@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/page-header';
 import { useAuth } from '@/contexts/auth-context';
 import api from '@/lib/api';
-import { AttendanceLog, User } from '@/types';
+import { AttendanceLog, Shift, User } from '@/types';
 import {
   LogIn, LogOut, Clock, MapPin, AlertCircle, Users,
   Download, PencilLine, Check, X as XIcon, List, LayoutGrid, Trash2, Save,
@@ -30,6 +30,17 @@ function fmtTime(dt?: string) {
   if (!dt) return '--:--';
   return new Date(dt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 }
+const hhmm = (t?: string | null) => (t ? t.slice(0, 5) : '');
+
+/** 'Sáng 07:00—11:30 · Chiều 14:00—17:30' — giờ làm mà chấm công được tính theo. */
+function shiftHours(shift?: Shift | null) {
+  if (!shift) return '';
+  const parts: string[] = [];
+  if (shift.morningStart) parts.push(`Sáng ${hhmm(shift.morningStart)}—${hhmm(shift.morningEnd)}`);
+  if (shift.afternoonStart) parts.push(`Chiều ${hhmm(shift.afternoonStart)}—${hhmm(shift.afternoonEnd)}`);
+  return parts.join(' · ');
+}
+
 function fmtMins(m: number) {
   if (!m) return '0h 0m';
   return `${Math.floor(m / 60)}h ${m % 60}m`;
@@ -53,6 +64,13 @@ export default function AttendancePage() {
 
   const isDirector = user?.role === 'GIAM_DOC';
   const isManager  = user?.role === 'GIAM_DOC' || user?.role === 'QUAN_LY';
+
+  // Ca cua chinh minh — de hien gio lam dang ap dung cho hom nay.
+  const { data: myShift } = useQuery<Shift | null>({
+    queryKey: ['my-shift', user?.id],
+    queryFn: () => api.get(`/users/${user!.id}`).then(r => r.data.shift ?? null),
+    enabled: !isDirector && !!user?.id,
+  });
 
   // Personal today — only needed for non-director
   const { data: today } = useQuery<AttendanceLog>({
@@ -218,6 +236,8 @@ export default function AttendancePage() {
       { header: 'Số phút làm', value: (l: any) => l.workedMinutes ?? 0, width: 12 },
       { header: 'Thời gian làm', value: (l: any) => fmtMins(l.workedMinutes), width: 13 },
       { header: 'Đi muộn (phút)', value: (l: any) => l.lateMinutes ?? 0, width: 14 },
+      { header: 'Về sớm (phút)', value: (l: any) => l.earlyLeaveMinutes ?? 0, width: 14 },
+      { header: 'Ca làm việc', value: (l: any) => l.shift?.name ?? '', width: 14 },
       { header: 'Trạng thái', value: (l: any) => STATUS_MAP[l.status]?.label || l.status, width: 14 },
     ],
     stampedFileName(`ChamCong_T${viewMonth}-${viewYear}`),
@@ -269,6 +289,11 @@ export default function AttendancePage() {
                 <p className="text-sm font-medium text-gray-900">
                   Hôm nay — {now.toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'long' })}
                 </p>
+                {myShift && (
+                  <p className="text-xs text-indigo-600 mt-0.5">
+                    <span className="font-medium">{myShift.name}</span> · {shiftHours(myShift)}
+                  </p>
+                )}
                 <p className="text-xs text-gray-500 mt-0.5">
                   {today ? (
                     <>
@@ -277,6 +302,9 @@ export default function AttendancePage() {
                       Ra: <span className="font-medium">{fmtTime(today.checkOutAt)}</span>
                       {' · '}
                       Làm: <span className="font-medium">{fmtMins(today.workedMinutes)}</span>
+                      {today.expectedMinutes > 0 && <span className="text-gray-400">/{fmtMins(today.expectedMinutes)}</span>}
+                      {today.lateMinutes > 0 && <span className="text-amber-600"> · Muộn {today.lateMinutes}ph</span>}
+                      {today.earlyLeaveMinutes > 0 && <span className="text-orange-600"> · Về sớm {today.earlyLeaveMinutes}ph</span>}
                     </>
                   ) : 'Chưa có dữ liệu chấm công'}
                 </p>
@@ -418,9 +446,21 @@ export default function AttendancePage() {
                   </div>
                   <div className="bg-gray-50 rounded-lg py-1.5">
                     <p className="text-[10px] text-gray-400">Làm việc</p>
-                    <p className="text-sm font-medium text-gray-800">{fmtMins(log.workedMinutes)}</p>
+                    <p className="text-sm font-medium text-gray-800">
+                      {fmtMins(log.workedMinutes)}
+                      {log.expectedMinutes > 0 && <span className="text-gray-400">/{fmtMins(log.expectedMinutes)}</span>}
+                    </p>
                   </div>
                 </div>
+                {(log.shift || log.lateMinutes > 0 || log.earlyLeaveMinutes > 0) && (
+                  <p className="text-[11px] text-gray-400 mt-1.5">
+                    {log.shift?.name}
+                    {log.shift && (log.lateMinutes > 0 || log.earlyLeaveMinutes > 0) ? ' · ' : ''}
+                    {log.lateMinutes > 0 && `Muộn ${log.lateMinutes}ph`}
+                    {log.lateMinutes > 0 && log.earlyLeaveMinutes > 0 ? ' · ' : ''}
+                    {log.earlyLeaveMinutes > 0 && `Về sớm ${log.earlyLeaveMinutes}ph`}
+                  </p>
+                )}
                 {isDirector && (
                   <div className="flex justify-end gap-1 mt-2">
                     <button onClick={() => openEdit(log)} className="btn btn-sm btn-ghost text-indigo-600">
@@ -441,6 +481,7 @@ export default function AttendancePage() {
               <tr className="bg-gray-50 text-left">
                 {isManager && <th className="text-xs font-medium text-gray-500 px-4 py-2.5">Nhân viên</th>}
                 <th className="text-xs font-medium text-gray-500 px-4 py-2.5">Ngày</th>
+                <th className="text-xs font-medium text-gray-500 px-4 py-2.5">Ca</th>
                 <th className="text-xs font-medium text-gray-500 px-4 py-2.5">Vào</th>
                 <th className="text-xs font-medium text-gray-500 px-4 py-2.5">Ra</th>
                 <th className="text-xs font-medium text-gray-500 px-4 py-2.5">Làm việc</th>
@@ -453,9 +494,20 @@ export default function AttendancePage() {
                 <tr key={log.id} className="hover:bg-gray-50 transition-colors">
                   {isManager && <td className="px-4 py-3 text-sm text-gray-700">{(log as any).user?.fullName}</td>}
                   <td className="px-4 py-3 text-sm text-gray-700 font-medium">{log.workDate}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600" title={shiftHours(log.shift)}>{log.shift?.name || '—'}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{fmtTime(log.checkInAt)}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{fmtTime(log.checkOutAt)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{fmtMins(log.workedMinutes)}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">
+                    {fmtMins(log.workedMinutes)}
+                    {log.expectedMinutes > 0 && <span className="text-gray-400">/{fmtMins(log.expectedMinutes)}</span>}
+                    {(log.lateMinutes > 0 || log.earlyLeaveMinutes > 0) && (
+                      <span className="block text-[11px] text-gray-400">
+                        {log.lateMinutes > 0 && `Muộn ${log.lateMinutes}ph`}
+                        {log.lateMinutes > 0 && log.earlyLeaveMinutes > 0 ? ' · ' : ''}
+                        {log.earlyLeaveMinutes > 0 && `Về sớm ${log.earlyLeaveMinutes}ph`}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_MAP[log.status]?.cls || 'bg-gray-100 text-gray-600'}`}>
                       {STATUS_MAP[log.status]?.label || log.status}
@@ -486,7 +538,7 @@ export default function AttendancePage() {
                 </tr>
               ))}
               {filteredLogs.length === 0 && (
-                <tr><td colSpan={7} className="text-center py-10 text-sm text-gray-400">Chưa có dữ liệu</td></tr>
+                <tr><td colSpan={8} className="text-center py-10 text-sm text-gray-400">Chưa có dữ liệu</td></tr>
               )}
             </tbody>
           </table>

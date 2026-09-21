@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/page-header';
 import { useAuth } from '@/contexts/auth-context';
 import api from '@/lib/api';
-import { User, Department, UserRole } from '@/types';
+import { User, Department, Shift, UserRole } from '@/types';
 import { Plus, Search, Pencil, KeyRound, UserX, UserCheck, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -35,6 +35,11 @@ export default function UsersPage() {
   const { data: departments = [] } = useQuery<Department[]>({
     queryKey: ['departments'],
     queryFn: () => api.get('/departments').then(r => r.data),
+  });
+
+  const { data: shifts = [] } = useQuery<Shift[]>({
+    queryKey: ['shifts'],
+    queryFn: () => api.get('/attendance/shifts').then(r => r.data),
   });
 
   const filtered = users.filter(u => {
@@ -149,7 +154,7 @@ export default function UsersPage() {
                   </div>
                   <p className="text-xs text-gray-500 truncate">{u.email}</p>
                   <p className="text-xs text-gray-500 truncate">
-                    {[u.department?.name, u.positionTitle].filter(Boolean).join(' · ') || '—'}
+                    {[u.department?.name, u.positionTitle, u.shift?.name].filter(Boolean).join(' · ') || '—'}
                   </p>
                   <div className="flex items-center gap-1.5 mt-2">
                     <span className={`text-[11px] font-medium px-2 py-0.5 rounded ${ROLE_MAP[u.role]?.cls}`}>
@@ -189,6 +194,7 @@ export default function UsersPage() {
                 <th className="text-xs font-medium text-gray-500 px-4 py-3 text-left">Họ tên</th>
                 <th className="text-xs font-medium text-gray-500 px-4 py-3 text-left">Email</th>
                 <th className="text-xs font-medium text-gray-500 px-4 py-3 text-left">Bộ phận</th>
+                <th className="text-xs font-medium text-gray-500 px-4 py-3 text-left">Ca làm việc</th>
                 <th className="text-xs font-medium text-gray-500 px-4 py-3 text-left">Vị trí</th>
                 <th className="text-xs font-medium text-gray-500 px-4 py-3 text-left">Vai trò</th>
                 <th className="text-xs font-medium text-gray-500 px-4 py-3 text-left">Trạng thái</th>
@@ -197,7 +203,7 @@ export default function UsersPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {isLoading ? (
-                <tr><td colSpan={7} className="text-center py-10">
+                <tr><td colSpan={8} className="text-center py-10">
                   <div className="w-5 h-5 border-2 border-gray-200 border-t-indigo-500 rounded-full animate-spin mx-auto" />
                 </td></tr>
               ) : filtered.map(u => (
@@ -213,6 +219,11 @@ export default function UsersPage() {
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-500">{u.email}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{u.department?.name || '—'}</td>
+                  <td className="px-4 py-3">
+                    {u.shift
+                      ? <span className="text-xs font-medium px-2 py-0.5 rounded bg-sky-50 text-sky-700" title={shiftHours(u.shift)}>{u.shift.name}</span>
+                      : <span className="text-sm text-gray-400">—</span>}
+                  </td>
                   <td className="px-4 py-3 text-sm text-gray-600">{u.positionTitle || '—'}</td>
                   <td className="px-4 py-3">
                     <span className={`text-xs font-medium px-2 py-0.5 rounded ${ROLE_MAP[u.role]?.cls}`}>
@@ -270,7 +281,7 @@ export default function UsersPage() {
       <Dialog open={showCreate} onOpenChange={(o) => !o && setShowCreate(false)}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Thêm nhân viên</DialogTitle></DialogHeader>
-          <UserForm departments={departments} onSubmit={(d: any) => createUser.mutate(d)} onCancel={() => setShowCreate(false)} />
+          <UserForm departments={departments} shifts={shifts} onSubmit={(d: any) => createUser.mutate(d)} onCancel={() => setShowCreate(false)} />
         </DialogContent>
       </Dialog>
 
@@ -290,6 +301,7 @@ export default function UsersPage() {
             <EditUserForm
               user={editUser}
               departments={departments}
+              shifts={shifts}
               onSubmit={(d: any) => updateUser.mutate({ id: editUser.id, data: d })}
               onCancel={() => setEditUser(null)}
             />
@@ -387,10 +399,35 @@ function ChangePasswordForm({ user, onDone }: { user: User; onDone: () => void }
   );
 }
 
-function UserForm({ onSubmit, onCancel, departments }: { onSubmit: any; onCancel: any; departments: Department[] }) {
-  const [f, setF] = useState({ fullName: '', email: '', password: '', phone: '', role: 'NHAN_VIEN', positionTitle: '', departmentId: '' });
+/** 'Sáng 07:00—11:30 · Chiều 14:00—17:30' — giờ làm mà chấm công được tính theo. */
+export function shiftHours(shift: Shift) {
+  const hhmm = (t?: string | null) => (t ? t.slice(0, 5) : '');
+  const parts: string[] = [];
+  if (shift.morningStart) parts.push(`Sáng ${hhmm(shift.morningStart)}—${hhmm(shift.morningEnd)}`);
+  if (shift.afternoonStart) parts.push(`Chiều ${hhmm(shift.afternoonStart)}—${hhmm(shift.afternoonEnd)}`);
+  return parts.join(' · ');
+}
+
+function ShiftSelect({ value, shifts, onChange }: { value: string; shifts: Shift[]; onChange: (v: string) => void }) {
+  const selected = shifts.find(s => String(s.id) === value);
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSubmit({ ...f, departmentId: f.departmentId ? Number(f.departmentId) : undefined }); }} className="space-y-3 mt-2">
+    <div>
+      <label className="lbl">Ca làm việc</label>
+      <select value={value} onChange={e => onChange(e.target.value)} className="field">
+        <option value="">— Chưa chọn —</option>
+        {shifts.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+      </select>
+      <p className="text-[11px] text-gray-400 mt-1 min-h-[14px]">
+        {selected ? shiftHours(selected) : 'Chấm công sẽ tính theo giờ của ca được chọn'}
+      </p>
+    </div>
+  );
+}
+
+function UserForm({ onSubmit, onCancel, departments, shifts }: { onSubmit: any; onCancel: any; departments: Department[]; shifts: Shift[] }) {
+  const [f, setF] = useState({ fullName: '', email: '', password: '', phone: '', role: 'NHAN_VIEN', positionTitle: '', departmentId: '', shiftId: '' });
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); onSubmit({ ...f, departmentId: f.departmentId ? Number(f.departmentId) : undefined, shiftId: f.shiftId ? Number(f.shiftId) : undefined }); }} className="space-y-3 mt-2">
       <div>
         <label className="lbl">Họ tên *</label>
         <input required value={f.fullName} onChange={e => setF(p => ({ ...p, fullName: e.target.value }))}
@@ -440,6 +477,7 @@ function UserForm({ onSubmit, onCancel, departments }: { onSubmit: any; onCancel
           </select>
         </div>
       </div>
+      <ShiftSelect value={f.shiftId} shifts={shifts} onChange={v => setF(p => ({ ...p, shiftId: v }))} />
       <div className="flex justify-end gap-2 pt-1">
         <button type="button" onClick={onCancel} className="btn btn-secondary">Hủy</button>
         <button type="submit" className="btn btn-primary">Thêm</button>
@@ -448,7 +486,7 @@ function UserForm({ onSubmit, onCancel, departments }: { onSubmit: any; onCancel
   );
 }
 
-function EditUserForm({ user, onSubmit, onCancel, departments }: { user: User; onSubmit: any; onCancel: any; departments: Department[] }) {
+function EditUserForm({ user, onSubmit, onCancel, departments, shifts }: { user: User; onSubmit: any; onCancel: any; departments: Department[]; shifts: Shift[] }) {
   const initManagedIds = (user.managedDepartments ?? []).map(d => d.id);
   const [f, setF] = useState({
     fullName: user.fullName,
@@ -456,6 +494,7 @@ function EditUserForm({ user, onSubmit, onCancel, departments }: { user: User; o
     role: user.role,
     positionTitle: user.positionTitle || '',
     departmentId: user.departmentId ? String(user.departmentId) : '',
+    shiftId: user.shiftId ? String(user.shiftId) : '',
   });
   const [managedIds, setManagedIds] = useState<number[]>(initManagedIds);
 
@@ -469,6 +508,7 @@ function EditUserForm({ user, onSubmit, onCancel, departments }: { user: User; o
     onSubmit({
       ...f,
       departmentId: f.departmentId ? Number(f.departmentId) : null,
+      shiftId: f.shiftId ? Number(f.shiftId) : null,
       managedDepartmentIds: isQl ? managedIds : undefined,
     });
   };
@@ -513,6 +553,8 @@ function EditUserForm({ user, onSubmit, onCancel, departments }: { user: User; o
           </select>
         </div>
       </div>
+
+      <ShiftSelect value={f.shiftId} shifts={shifts} onChange={v => setF(p => ({ ...p, shiftId: v }))} />
 
       {isQl && (
         <div>

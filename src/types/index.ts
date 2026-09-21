@@ -22,6 +22,8 @@ export interface User {
   status: UserStatus;
   departmentId?: number;
   department?: Department;
+  shiftId?: number;
+  shift?: Shift;
   managedDepartments?: Department[];
   createdAt: string;
 }
@@ -98,14 +100,17 @@ export interface TaskAttachment {
 
 export type AttendanceStatus = 'PRESENT' | 'LATE' | 'ABSENT' | 'ON_LEAVE' | 'HOLIDAY' | 'SHORT_HOURS';
 
+/** Một ca = giờ làm việc của cả ngày: buổi sáng + buổi chiều. */
 export interface Shift {
   id: number;
   code: string;
   name: string;
-  startTime: string;
-  endTime: string;
-  breakMinutes: number;
+  morningStart: string | null;
+  morningEnd: string | null;
+  afternoonStart: string | null;
+  afternoonEnd: string | null;
   graceMinutes: number;
+  isActive: boolean;
 }
 
 export interface AttendanceLog {
@@ -122,7 +127,10 @@ export interface AttendanceLog {
   checkOutValid?: boolean;
   status: AttendanceStatus;
   lateMinutes: number;
+  earlyLeaveMinutes: number;
   workedMinutes: number;
+  /** Tổng số phút phải làm theo ca của ngày đó. */
+  expectedMinutes: number;
   isAdjusted: boolean;
   note?: string;
 }
