@@ -30,10 +30,8 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-12 h-12 rounded-xl bg-indigo-500 flex items-center justify-center mx-auto mb-4">
-            <span className="text-white text-lg font-bold">NK</span>
-          </div>
-          <h1 className="text-xl font-semibold text-gray-900">HRM Phòng Khám</h1>
+          <img src="/logo-mark.png" alt="Nha Khoa Gia Đình" className="w-16 h-16 object-contain mx-auto mb-3" />
+          <h1 className="text-xl font-semibold text-gray-900">HRM Nha Khoa Gia Đình</h1>
           <p className="text-sm text-gray-500 mt-1">Đăng nhập vào hệ thống</p>
         </div>
 

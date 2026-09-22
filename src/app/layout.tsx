@@ -7,12 +7,12 @@ import { ServiceWorker } from '@/components/pwa/service-worker';
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
-  title: 'HRM Phòng Khám',
+  title: 'HRM Nha Khoa Gia Đình',
   description: 'Hệ thống quản lý nội bộ phòng khám nha khoa',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
-    title: 'HRM',
+    title: 'NK Gia Đình',
     statusBarStyle: 'default',
   },
   icons: {

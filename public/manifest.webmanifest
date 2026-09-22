@@ -1,7 +1,7 @@
 {
-  "name": "HRM Phòng Khám",
-  "short_name": "HRM",
-  "description": "Quản lý nhân sự, chấm công và công việc phòng khám",
+  "name": "HRM Nha Khoa Gia Đình",
+  "short_name": "NK Gia Đình",
+  "description": "Quản lý nhân sự, chấm công và công việc Nha Khoa Gia Đình",
   "lang": "vi",
   "start_url": "/dashboard",
   "scope": "/",

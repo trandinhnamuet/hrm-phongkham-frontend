@@ -96,11 +96,11 @@ export function Sidebar() {
             title="Về trang chủ"
             className="flex items-center gap-3 min-w-0 rounded-md hover:opacity-80 transition-opacity"
           >
-            <div className="w-7 h-7 rounded-md bg-indigo-500 flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-xs font-bold">NK</span>
+            <div className="w-7 h-7 rounded-md bg-white flex items-center justify-center flex-shrink-0 p-0.5">
+              <img src="/logo-mark.png" alt="" className="w-full h-full object-contain" />
             </div>
             <span className={cn('text-white text-sm font-semibold truncate', hideOnCollapse)}>
-              HRM Phòng Khám
+              HRM Nha Khoa Gia Đình
             </span>
           </Link>
           {/* Close button — mobile only */}

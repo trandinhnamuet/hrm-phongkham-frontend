@@ -5,7 +5,7 @@
  * mạng. KHÔNG cache lời gọi API: dữ liệu chấm công, công việc phải luôn lấy mới,
  * cache nhầm ở đây còn hại hơn là không có.
  */
-const CACHE = 'hrm-shell-v1';
+const CACHE = 'hrm-shell-v2';
 const SHELL = ['/manifest.webmanifest', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', (e) => {

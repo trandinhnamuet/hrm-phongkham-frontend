@@ -11,6 +11,7 @@ import { SidebarProvider, useSidebar } from '@/contexts/sidebar-context';
 import { BottomNav } from '@/components/layout/bottom-nav';
 import { InstallButton } from '@/components/pwa/install-button';
 import { NotificationBell } from '@/components/notifications/notification-bell';
+import { AccountMenu } from '@/components/layout/account-menu';
 
 function MobileTopBar() {
   const { toggle } = useSidebar();
@@ -23,15 +24,14 @@ function MobileTopBar() {
       >
         <Menu size={20} />
       </button>
-      <Link href="/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-        <div className="w-6 h-6 rounded-md bg-indigo-500 flex items-center justify-center">
-          <span className="text-white text-[10px] font-bold">NK</span>
-        </div>
-        <span className="text-sm font-semibold text-gray-900">HRM Phòng Khám</span>
+      <Link href="/dashboard" className="flex items-center gap-2 min-w-0 hover:opacity-80 transition-opacity">
+        <img src="/logo-mark.png" alt="" className="w-7 h-7 object-contain flex-shrink-0" />
+        <span className="text-sm font-semibold text-gray-900 truncate">HRM Nha Khoa Gia Đình</span>
       </Link>
-      <div className="ml-auto flex items-center gap-1">
+      <div className="ml-auto flex items-center gap-1 flex-shrink-0">
         <InstallButton />
         <NotificationBell />
+        <AccountMenu />
       </div>
     </div>
   );
