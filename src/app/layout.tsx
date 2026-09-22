@@ -15,10 +15,13 @@ export const metadata: Metadata = {
     title: 'NK Gia Đình',
     statusBarStyle: 'default',
   },
+  // Chỉ khai các bản nền trong suốt ở đây. Trình duyệt chọn favicon trong đúng
+  // danh sách này, mà icon-192/512 là bản nền trắng dành cho lúc cài app — để ở
+  // đây là thanh tab hiện ra một ô trắng. Icon cài app lấy từ manifest.
   icons: {
     icon: [
-      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+      { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon-192.png', sizes: '192x192', type: 'image/png' },
     ],
     apple: '/apple-touch-icon.png',
   },
