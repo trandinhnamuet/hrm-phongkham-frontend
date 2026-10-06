@@ -32,13 +32,10 @@ function fmtTime(dt?: string) {
 }
 const hhmm = (t?: string | null) => (t ? t.slice(0, 5) : '');
 
-/** 'Sáng 07:00—11:30 · Chiều 14:00—17:30' — giờ làm mà chấm công được tính theo. */
+/** 'Buổi sáng 07:00—11:30 · Buổi chiều 14:00—17:30' — giờ làm mà chấm công được tính theo. */
 function shiftHours(shift?: Shift | null) {
   if (!shift) return '';
-  const parts: string[] = [];
-  if (shift.morningStart) parts.push(`Sáng ${hhmm(shift.morningStart)}—${hhmm(shift.morningEnd)}`);
-  if (shift.afternoonStart) parts.push(`Chiều ${hhmm(shift.afternoonStart)}—${hhmm(shift.afternoonEnd)}`);
-  return parts.join(' · ');
+  return (shift.sessions ?? []).map(s => `${s.name} ${hhmm(s.start)}—${hhmm(s.end)}`).join(' · ');
 }
 
 function fmtMins(m: number) {

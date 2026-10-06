@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/layout/page-header';
 import { useAuth } from '@/contexts/auth-context';
 import api from '@/lib/api';
-import { MapPin, Clock, Building2, Pencil, Trash2, Plus, CalendarOff, ChevronRight } from 'lucide-react';
+import { MapPin, Clock, Building2, Pencil, Trash2, Plus, CalendarOff, ChevronRight, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { Department, Shift } from '@/types';
+import { Department, Shift, ShiftSession } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { getPosition, gpsHelpSteps } from '@/lib/geolocation';
 
@@ -38,7 +38,7 @@ export default function SettingsPage() {
     { id: 'clinic' as Panel,        icon: MapPin,       label: 'Thông tin phòng khám & GPS',  desc: 'Tên, tọa độ GPS, bán kính chấm công' },
     { id: 'departments' as Panel,   icon: Building2,    label: 'Bộ phận',                      desc: 'Thêm, sửa, xóa các bộ phận' },
     { id: 'leave-types' as Panel,   icon: CalendarOff,  label: 'Loại ngày nghỉ',               desc: 'Cấu hình các loại phép nghỉ' },
-    { id: 'shifts' as Panel,        icon: Clock,        label: 'Ca làm việc',                  desc: 'Giờ làm cả ngày: buổi sáng + buổi chiều' },
+    { id: 'shifts' as Panel,        icon: Clock,        label: 'Ca làm việc',                  desc: 'Giờ làm cả ngày, gồm một hoặc nhiều buổi' },
   ];
 
   return (
@@ -387,16 +387,18 @@ function LeaveTypesPanel({ qc }: { qc: any }) {
 
 /* ─── Shifts panel ────────────────────────────────────────── */
 function ShiftsPanel({ qc }: { qc: any }) {
-  const EMPTY = {
+  const EMPTY: ShiftForm = {
     code: '', name: '',
-    morningStart: '07:00', morningEnd: '11:30',
-    afternoonStart: '14:00', afternoonEnd: '17:30',
+    sessions: [
+      { name: 'Buổi sáng', start: '07:00', end: '11:30' },
+      { name: 'Buổi chiều', start: '14:00', end: '17:30' },
+    ],
     graceMinutes: 5,
   };
 
   const [showNew, setShowNew] = useState(false);
-  const [newShift, setNewShift] = useState(EMPTY);
-  const [editShift, setEditShift] = useState<Shift | null>(null);
+  const [newShift, setNewShift] = useState<ShiftForm>(EMPTY);
+  const [editShift, setEditShift] = useState<(ShiftForm & { id: number }) | null>(null);
 
   const { data: shifts = [] } = useQuery<Shift[]>({
     queryKey: ['shifts'],
@@ -431,7 +433,8 @@ function ShiftsPanel({ qc }: { qc: any }) {
           <ShiftFields value={newShift} onChange={setNewShift} />
           <div className="flex gap-2 justify-end">
             <button onClick={() => setShowNew(false)} className="btn btn-sm btn-secondary">Hủy</button>
-            <button onClick={() => createShift.mutate(newShift)} disabled={!newShift.code || !newShift.name || createShift.isPending}
+            <button onClick={() => createShift.mutate(shiftPayload(newShift))}
+              disabled={!isShiftFormComplete(newShift) || createShift.isPending}
               className="btn btn-sm btn-primary">Tạo ca</button>
           </div>
         </div>
@@ -444,23 +447,12 @@ function ShiftsPanel({ qc }: { qc: any }) {
           <div key={shift.id} className="px-3 py-3">
             {editShift?.id === shift.id ? (
               <div className="space-y-3">
-                <ShiftFields value={editShift} onChange={v => setEditShift(v as Shift)} />
+                <ShiftFields value={editShift} onChange={v => setEditShift({ ...v, id: shift.id })} />
                 <div className="flex gap-2 justify-end">
                   <button onClick={() => setEditShift(null)} className="btn btn-sm btn-secondary">Hủy</button>
                   <button
-                    onClick={() => updateShift.mutate({
-                      id: shift.id,
-                      data: {
-                        code: editShift.code,
-                        name: editShift.name,
-                        morningStart: editShift.morningStart || null,
-                        morningEnd: editShift.morningEnd || null,
-                        afternoonStart: editShift.afternoonStart || null,
-                        afternoonEnd: editShift.afternoonEnd || null,
-                        graceMinutes: Number(editShift.graceMinutes) || 0,
-                      },
-                    })}
-                    disabled={!editShift.code || !editShift.name || updateShift.isPending}
+                    onClick={() => updateShift.mutate({ id: shift.id, data: shiftPayload(editShift) })}
+                    disabled={!isShiftFormComplete(editShift) || updateShift.isPending}
                     className="btn btn-sm btn-primary">Lưu</button>
                 </div>
               </div>
@@ -473,21 +465,19 @@ function ShiftsPanel({ qc }: { qc: any }) {
                     {!shift.isActive && <span className="text-[11px] text-red-400">Không dùng</span>}
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {shift.morningStart && <>Sáng {hhmm(shift.morningStart)}—{hhmm(shift.morningEnd)}</>}
-                    {shift.morningStart && shift.afternoonStart ? ' · ' : ''}
-                    {shift.afternoonStart && <>Chiều {hhmm(shift.afternoonStart)}—{hhmm(shift.afternoonEnd)}</>}
-                    {` · ${fmtShiftHours(shiftTotalMinutes(shift))}/ngày`}
+                    {(shift.sessions ?? []).map(s => `${s.name} ${hhmm(s.start)}—${hhmm(s.end)}`).join(' · ')}
+                    {` · ${fmtShiftHours(shiftTotalMinutes(shift.sessions ?? []))}/ngày`}
                     {shift.graceMinutes > 0 && ` · Gia hạn ${shift.graceMinutes}ph`}
                   </p>
                 </div>
                 <div className="flex gap-1 flex-shrink-0">
                   <button
                     onClick={() => { setShowNew(false); setEditShift({
-                      ...shift,
-                      morningStart: hhmm(shift.morningStart),
-                      morningEnd: hhmm(shift.morningEnd),
-                      afternoonStart: hhmm(shift.afternoonStart),
-                      afternoonEnd: hhmm(shift.afternoonEnd),
+                      id: shift.id,
+                      code: shift.code,
+                      name: shift.name,
+                      sessions: (shift.sessions ?? []).map(s => ({ name: s.name, start: hhmm(s.start), end: hhmm(s.end) })),
+                      graceMinutes: shift.graceMinutes,
                     }); }}
                     title="Sửa ca"
                     className="p-1.5 rounded text-gray-400 hover:text-indigo-600 hover:bg-indigo-50"><Pencil size={13} /></button>
@@ -506,6 +496,27 @@ function ShiftsPanel({ qc }: { qc: any }) {
   );
 }
 
+/** Dữ liệu form của một ca; giờ dạng 'HH:mm' cho input type=time. */
+interface ShiftForm {
+  code: string;
+  name: string;
+  sessions: ShiftSession[];
+  graceMinutes: number;
+}
+
+function isShiftFormComplete(f: ShiftForm) {
+  return !!f.code && !!f.name && f.sessions.length > 0 && f.sessions.every(s => s.start && s.end);
+}
+
+function shiftPayload(f: ShiftForm) {
+  return {
+    code: f.code,
+    name: f.name,
+    sessions: f.sessions.map(s => ({ name: s.name.trim(), start: s.start, end: s.end })),
+    graceMinutes: Number(f.graceMinutes) || 0,
+  };
+}
+
 /** Postgres trả về kiểu time là "08:00:00", input type=time cần "08:00". */
 function hhmm(t?: string | null) { return (t || '').slice(0, 5); }
 
@@ -515,17 +526,14 @@ function timeToMins(t?: string | null) {
   return Number.isNaN(h) || Number.isNaN(m) ? null : h * 60 + m;
 }
 
-/** Tổng số phút làm của ca — khoảng nghỉ giữa hai buổi không được tính. */
-function shiftTotalMinutes(shift: {
-  morningStart?: string | null; morningEnd?: string | null;
-  afternoonStart?: string | null; afternoonEnd?: string | null;
-}) {
-  const sessions: Array<[string | null | undefined, string | null | undefined]> = [
-    [shift.morningStart, shift.morningEnd],
-    [shift.afternoonStart, shift.afternoonEnd],
-  ];
-  return sessions.reduce((sum, [from, to]) => {
-    const a = timeToMins(from), b = timeToMins(to);
+function minsToTime(m: number) {
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
+
+/** Tổng số phút làm của ca — khoảng nghỉ giữa các buổi không được tính. */
+function shiftTotalMinutes(sessions: ShiftSession[]) {
+  return sessions.reduce((sum, { start, end }) => {
+    const a = timeToMins(start), b = timeToMins(end);
     return a !== null && b !== null && b > a ? sum + (b - a) : sum;
   }, 0);
 }
@@ -534,13 +542,47 @@ function fmtShiftHours(m: number) {
   return `${Math.floor(m / 60)}h${m % 60 ? String(m % 60).padStart(2, '0') : ''}`;
 }
 
+/** Tên buổi điền sẵn; người dùng sửa thành tên khác tuỳ ý. */
+const SESSION_PRESETS = ['Buổi sáng', 'Buổi chiều', 'Buổi tối'];
+
+/** Gợi ý tên buổi theo giờ vào: trước 12h là sáng, trước 17h là chiều, còn lại là tối. */
+function presetNameFor(start: string) {
+  const m = timeToMins(start);
+  if (m === null) return SESSION_PRESETS[0];
+  return m < 12 * 60 ? SESSION_PRESETS[0] : m < 17 * 60 ? SESSION_PRESETS[1] : SESSION_PRESETS[2];
+}
+
 /**
  * Các ô nhập của một ca, dùng chung cho form thêm mới và form sửa.
- * Một ca là giờ làm của cả ngày nên khai báo buổi sáng và buổi chiều cùng lúc.
+ * Một ca là giờ làm của cả ngày, gồm một hoặc nhiều buổi (VD chỉ một buổi
+ * 17:00—19:00 cho nhân viên bán thời gian).
  */
-function ShiftFields({ value, onChange }: { value: any; onChange: (v: any) => void }) {
-  const set = (k: string, v: any) => onChange({ ...value, [k]: v });
-  const total = shiftTotalMinutes(value);
+function ShiftFields({ value, onChange }: { value: ShiftForm; onChange: (v: ShiftForm) => void }) {
+  const presetListId = useId();
+  const set = <K extends keyof ShiftForm>(k: K, v: ShiftForm[K]) => onChange({ ...value, [k]: v });
+  const sessions = value.sessions;
+  const total = shiftTotalMinutes(sessions);
+
+  const setSession = (idx: number, patch: Partial<ShiftSession>) => {
+    set('sessions', sessions.map((s, i) => {
+      if (i !== idx) return s;
+      const next = { ...s, ...patch };
+      // Tên còn là tên điền sẵn thì đổi theo giờ vào; tên người dùng tự đặt thì giữ nguyên.
+      if (patch.start !== undefined && (!s.name.trim() || SESSION_PRESETS.includes(s.name))) {
+        next.name = presetNameFor(patch.start);
+      }
+      return next;
+    }));
+  };
+
+  const addSession = () => {
+    // Buổi mới bắt đầu từ lúc buổi cuối tan, kéo dài 2 tiếng.
+    const lastEnd = sessions.length ? timeToMins(sessions[sessions.length - 1].end) : null;
+    const start = lastEnd === null ? 7 * 60 : Math.min(lastEnd, 22 * 60);
+    const end = Math.min(start + 120, 23 * 60 + 59);
+    const startStr = minsToTime(start);
+    set('sessions', [...sessions, { name: presetNameFor(startStr), start: startStr, end: minsToTime(end) }]);
+  };
 
   return (
     <div className="space-y-3">
@@ -557,27 +599,39 @@ function ShiftFields({ value, onChange }: { value: any; onChange: (v: any) => vo
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {([
-          ['Buổi sáng', 'morningStart', 'morningEnd'],
-          ['Buổi chiều', 'afternoonStart', 'afternoonEnd'],
-        ] as [string, string, string][]).map(([label, startKey, endKey]) => (
-          <div key={label} className="bg-white border border-gray-200 rounded-md p-2.5">
-            <p className="text-[11px] font-semibold text-gray-700 mb-2">{label}</p>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="lbl">Vào</label>
-                <input type="time" value={value[startKey] ?? ''}
-                  onChange={e => set(startKey, e.target.value)} className="field field-sm" />
-              </div>
-              <div>
-                <label className="lbl">Tan</label>
-                <input type="time" value={value[endKey] ?? ''}
-                  onChange={e => set(endKey, e.target.value)} className="field field-sm" />
-              </div>
+      <div className="space-y-2">
+        <datalist id={presetListId}>
+          {SESSION_PRESETS.map(n => <option key={n} value={n} />)}
+        </datalist>
+        {sessions.map((s, idx) => (
+          <div key={idx} className="bg-white border border-gray-200 rounded-md p-2.5 flex flex-wrap items-end gap-2">
+            <div className="flex-1 min-w-[8rem]">
+              <label className="lbl">Tên buổi</label>
+              <input value={s.name} list={presetListId} placeholder={`Buổi ${idx + 1}`}
+                onChange={e => setSession(idx, { name: e.target.value })} className="field field-sm" />
             </div>
+            <div className="w-28">
+              <label className="lbl">Vào</label>
+              <input type="time" value={s.start}
+                onChange={e => setSession(idx, { start: e.target.value })} className="field field-sm" />
+            </div>
+            <div className="w-28">
+              <label className="lbl">Tan</label>
+              <input type="time" value={s.end}
+                onChange={e => setSession(idx, { end: e.target.value })} className="field field-sm" />
+            </div>
+            <button type="button" onClick={() => set('sessions', sessions.filter((_, i) => i !== idx))}
+              disabled={sessions.length <= 1}
+              title={sessions.length <= 1 ? 'Ca phải có ít nhất một buổi' : 'Bỏ buổi này'}
+              className="p-1.5 mb-0.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-gray-400">
+              <X size={14} />
+            </button>
           </div>
         ))}
+        <button type="button" onClick={addSession}
+          className="btn btn-sm btn-secondary text-indigo-600 border-indigo-200 hover:bg-indigo-50">
+          <Plus size={12} /> Thêm buổi
+        </button>
       </div>
 
       <div className="flex items-end justify-between gap-3">
@@ -588,7 +642,7 @@ function ShiftFields({ value, onChange }: { value: any; onChange: (v: any) => vo
         </div>
         <p className="text-xs text-gray-500 pb-1.5">
           Tổng giờ làm: <span className="font-medium text-gray-800">{fmtShiftHours(total)}</span>
-          <span className="text-gray-400"> (nghỉ trưa không tính)</span>
+          {sessions.length > 1 && <span className="text-gray-400"> (giờ nghỉ giữa các buổi không tính)</span>}
         </p>
       </div>
     </div>

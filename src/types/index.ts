@@ -100,15 +100,19 @@ export interface TaskAttachment {
 
 export type AttendanceStatus = 'PRESENT' | 'LATE' | 'ABSENT' | 'ON_LEAVE' | 'HOLIDAY' | 'SHORT_HOURS';
 
-/** Một ca = giờ làm việc của cả ngày: buổi sáng + buổi chiều. */
+/** Một buổi làm trong ca. Giờ dạng 'HH:mm:ss'. */
+export interface ShiftSession {
+  name: string;
+  start: string;
+  end: string;
+}
+
+/** Một ca = giờ làm việc của cả ngày, gồm một hoặc nhiều buổi. */
 export interface Shift {
   id: number;
   code: string;
   name: string;
-  morningStart: string | null;
-  morningEnd: string | null;
-  afternoonStart: string | null;
-  afternoonEnd: string | null;
+  sessions: ShiftSession[];
   graceMinutes: number;
   isActive: boolean;
 }
