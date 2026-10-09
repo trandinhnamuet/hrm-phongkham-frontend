@@ -7,7 +7,8 @@ import { User } from '@/types';
 interface AuthContextValue {
   user: User | null;
   token: string | null;
-  login: (email: string, password: string) => Promise<void>;
+  /** identifier: email hoặc số điện thoại. */
+  login: (identifier: string, password: string) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
   isLoading: boolean;
@@ -43,8 +44,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const { data } = await api.post('/auth/login', { email, password });
+  const login = async (identifier: string, password: string) => {
+    const { data } = await api.post('/auth/login', { identifier: identifier.trim(), password });
     localStorage.setItem('access_token', data.accessToken);
     localStorage.setItem('user', JSON.stringify(data.user));
     setToken(data.accessToken);

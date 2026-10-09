@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { toast } from 'sonner';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
@@ -16,7 +16,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(email, password);
+      await login(identifier, password);
       router.push('/dashboard');
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Đăng nhập thất bại');
@@ -39,12 +39,14 @@ export default function LoginPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Email</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Email hoặc số điện thoại</label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
+                type="text"
+                autoComplete="username"
+                autoCapitalize="none"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                placeholder="email@example.com hoặc 0912345678"
                 required
                 className="field"
               />

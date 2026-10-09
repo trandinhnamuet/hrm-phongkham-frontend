@@ -13,8 +13,9 @@ export interface User {
   id: string;
   employeeCode: string;
   fullName: string;
-  email: string;
-  phone?: string;
+  /** Email và SĐT đều dùng để đăng nhập; có thể thiếu một trong hai. */
+  email: string | null;
+  phone?: string | null;
   role: UserRole;
   positionTitle?: string;
   avatarUrl?: string;

@@ -48,7 +48,8 @@ export default function UsersPage() {
     if (deptFilter && String(u.departmentId) !== deptFilter) return false;
     if (search) {
       const q = search.toLowerCase();
-      if (!u.fullName.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q) && !u.employeeCode.includes(q)) return false;
+      if (!u.fullName.toLowerCase().includes(q) && !(u.email || '').toLowerCase().includes(q)
+        && !(u.phone || '').includes(q) && !u.employeeCode.includes(q)) return false;
     }
     return true;
   });
@@ -152,7 +153,7 @@ export default function UsersPage() {
                     <p className="text-sm font-semibold text-gray-900 truncate">{u.fullName}</p>
                     <span className="text-[11px] font-mono text-gray-400">{u.employeeCode}</span>
                   </div>
-                  <p className="text-xs text-gray-500 truncate">{u.email}</p>
+                  <p className="text-xs text-gray-500 truncate">{contactText(u)}</p>
                   <p className="text-xs text-gray-500 truncate">
                     {[u.department?.name, u.positionTitle, u.shift?.name].filter(Boolean).join(' · ') || '—'}
                   </p>
@@ -192,7 +193,7 @@ export default function UsersPage() {
               <tr className="bg-gray-50">
                 <th className="text-xs font-medium text-gray-500 px-4 py-3 text-left">Mã NV</th>
                 <th className="text-xs font-medium text-gray-500 px-4 py-3 text-left">Họ tên</th>
-                <th className="text-xs font-medium text-gray-500 px-4 py-3 text-left">Email</th>
+                <th className="text-xs font-medium text-gray-500 px-4 py-3 text-left">Email / SĐT</th>
                 <th className="text-xs font-medium text-gray-500 px-4 py-3 text-left">Bộ phận</th>
                 <th className="text-xs font-medium text-gray-500 px-4 py-3 text-left">Ca làm việc</th>
                 <th className="text-xs font-medium text-gray-500 px-4 py-3 text-left">Vị trí</th>
@@ -217,7 +218,10 @@ export default function UsersPage() {
                       <span className="text-sm font-medium text-gray-900">{u.fullName}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{u.email}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500">
+                    {u.email && <div>{u.email}</div>}
+                    {u.phone && <div className={u.email ? 'text-xs text-gray-400' : ''}>{u.phone}</div>}
+                  </td>
                   <td className="px-4 py-3 text-sm text-gray-600">{u.department?.name || '—'}</td>
                   <td className="px-4 py-3">
                     {u.shift
@@ -338,7 +342,7 @@ function ChangePasswordForm({ user, onDone }: { user: User; onDone: () => void }
         </div>
         <div className="min-w-0">
           <p className="text-sm font-medium text-gray-900 truncate">{user.fullName}</p>
-          <p className="text-xs text-gray-400 truncate">{user.email}</p>
+          <p className="text-xs text-gray-400 truncate">{contactText(user)}</p>
         </div>
       </div>
 
@@ -399,6 +403,37 @@ function ChangePasswordForm({ user, onDone }: { user: User; onDone: () => void }
   );
 }
 
+/** Email và SĐT (cái nào có thì hiện) — cả hai đều dùng để đăng nhập. */
+function contactText(u: User) {
+  return [u.email, u.phone].filter(Boolean).join(' · ');
+}
+
+/** Hai ô Email + SĐT dùng chung cho form thêm và form sửa nhân viên. */
+function LoginContactFields({ email, phone, onChange }: {
+  email: string; phone: string; onChange: (patch: { email?: string; phone?: string }) => void;
+}) {
+  const missing = !email.trim() && !phone.trim();
+  return (
+    <div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="lbl">Email</label>
+          <input type="email" value={email} onChange={e => onChange({ email: e.target.value })}
+            autoCapitalize="none" className="field" />
+        </div>
+        <div>
+          <label className="lbl">Điện thoại</label>
+          <input type="tel" value={phone} onChange={e => onChange({ phone: e.target.value })}
+            placeholder="0912345678" className="field" />
+        </div>
+      </div>
+      <p className={`text-[11px] mt-1 ${missing ? 'text-red-500' : 'text-gray-400'}`}>
+        Nhập ít nhất email hoặc số điện thoại — dùng để đăng nhập.
+      </p>
+    </div>
+  );
+}
+
 /** 'Buổi sáng 07:00—11:30 · Buổi chiều 14:00—17:30' — giờ làm mà chấm công được tính theo. */
 export function shiftHours(shift: Shift) {
   const hhmm = (t?: string | null) => (t ? t.slice(0, 5) : '');
@@ -424,26 +459,27 @@ function ShiftSelect({ value, shifts, onChange }: { value: string; shifts: Shift
 function UserForm({ onSubmit, onCancel, departments, shifts }: { onSubmit: any; onCancel: any; departments: Department[]; shifts: Shift[] }) {
   const [f, setF] = useState({ fullName: '', email: '', password: '', phone: '', role: 'NHAN_VIEN', positionTitle: '', departmentId: '', shiftId: '' });
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSubmit({ ...f, departmentId: f.departmentId ? Number(f.departmentId) : undefined, shiftId: f.shiftId ? Number(f.shiftId) : undefined }); }} className="space-y-3 mt-2">
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      if (!f.email.trim() && !f.phone.trim()) { toast.error('Nhập ít nhất email hoặc số điện thoại'); return; }
+      onSubmit({
+        ...f,
+        email: f.email.trim() || undefined,
+        phone: f.phone.trim() || undefined,
+        departmentId: f.departmentId ? Number(f.departmentId) : undefined,
+        shiftId: f.shiftId ? Number(f.shiftId) : undefined,
+      });
+    }} className="space-y-3 mt-2">
       <div>
         <label className="lbl">Họ tên *</label>
         <input required value={f.fullName} onChange={e => setF(p => ({ ...p, fullName: e.target.value }))}
           className="field" />
       </div>
-      <div>
-        <label className="lbl">Email *</label>
-        <input required type="email" value={f.email} onChange={e => setF(p => ({ ...p, email: e.target.value }))}
-          className="field" />
-      </div>
-      <div>
-        <label className="lbl">Mật khẩu *</label>
-        <input required type="password" value={f.password} onChange={e => setF(p => ({ ...p, password: e.target.value }))}
-          className="field" />
-      </div>
+      <LoginContactFields email={f.email} phone={f.phone} onChange={patch => setF(p => ({ ...p, ...patch }))} />
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="lbl">Điện thoại</label>
-          <input value={f.phone} onChange={e => setF(p => ({ ...p, phone: e.target.value }))}
+          <label className="lbl">Mật khẩu *</label>
+          <input required type="password" minLength={6} value={f.password} onChange={e => setF(p => ({ ...p, password: e.target.value }))}
             className="field" />
         </div>
         <div>
@@ -487,6 +523,7 @@ function EditUserForm({ user, onSubmit, onCancel, departments, shifts }: { user:
   const initManagedIds = (user.managedDepartments ?? []).map(d => d.id);
   const [f, setF] = useState({
     fullName: user.fullName,
+    email: user.email || '',
     phone: user.phone || '',
     role: user.role,
     positionTitle: user.positionTitle || '',
@@ -502,8 +539,11 @@ function EditUserForm({ user, onSubmit, onCancel, departments, shifts }: { user:
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!f.email.trim() && !f.phone.trim()) { toast.error('Nhập ít nhất email hoặc số điện thoại'); return; }
     onSubmit({
       ...f,
+      email: f.email.trim() || null,
+      phone: f.phone.trim() || null,
       departmentId: f.departmentId ? Number(f.departmentId) : null,
       shiftId: f.shiftId ? Number(f.shiftId) : null,
       managedDepartmentIds: isQl ? managedIds : undefined,
@@ -517,21 +557,15 @@ function EditUserForm({ user, onSubmit, onCancel, departments, shifts }: { user:
         <input value={f.fullName} onChange={e => setF(p => ({ ...p, fullName: e.target.value }))}
           className="field" />
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="lbl">Điện thoại</label>
-          <input value={f.phone} onChange={e => setF(p => ({ ...p, phone: e.target.value }))}
-            className="field" />
-        </div>
-        <div>
-          <label className="lbl">Vai trò</label>
-          <select value={f.role} onChange={e => setF(p => ({ ...p, role: e.target.value as UserRole }))}
-            className="field">
-            <option value="NHAN_VIEN">Nhân viên</option>
-            <option value="QUAN_LY">Quản lý</option>
-            <option value="GIAM_DOC">Giám đốc</option>
-          </select>
-        </div>
+      <LoginContactFields email={f.email} phone={f.phone} onChange={patch => setF(p => ({ ...p, ...patch }))} />
+      <div>
+        <label className="lbl">Vai trò</label>
+        <select value={f.role} onChange={e => setF(p => ({ ...p, role: e.target.value as UserRole }))}
+          className="field">
+          <option value="NHAN_VIEN">Nhân viên</option>
+          <option value="QUAN_LY">Quản lý</option>
+          <option value="GIAM_DOC">Giám đốc</option>
+        </select>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>

@@ -69,7 +69,7 @@ function AvatarSection({ user, onRefresh }: { user: any; onRefresh: () => Promis
 
         <div className="flex-1">
           <p className="text-sm font-semibold text-gray-900">{user.fullName}</p>
-          <p className="text-xs text-gray-500 mt-0.5">{user.email}</p>
+          <p className="text-xs text-gray-500 mt-0.5">{user.email || user.phone}</p>
           <span className="inline-block mt-2 text-[11px] font-medium px-2 py-0.5 rounded bg-indigo-50 text-indigo-700">
             {ROLE_LABEL[user.role] || user.role}
           </span>
@@ -163,7 +163,7 @@ function InfoSection({ user, onRefresh }: { user: any; onRefresh: () => Promise<
           <InfoField label="Ngày vào làm" value={user.joinDate
             ? new Date(user.joinDate).toLocaleDateString('vi-VN')
             : '—'} />
-          <InfoField label="Email" value={user.email} className="col-span-2" />
+          <InfoField label="Email" value={user.email || '—'} className="col-span-2" />
         </div>
 
         {editing ? (
