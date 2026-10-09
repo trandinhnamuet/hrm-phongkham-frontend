@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard, CheckSquare, Clock, CalendarOff,
   Users, Settings, LogOut, ChevronRight, X, ClipboardList, Bell,
@@ -10,6 +11,7 @@ import {
 import { useAuth } from '@/contexts/auth-context';
 import { useSidebar } from '@/contexts/sidebar-context';
 import { cn } from '@/lib/utils';
+import api from '@/lib/api';
 
 const navItems = [
   { href: '/dashboard',  label: 'Dashboard',  icon: LayoutDashboard, managerHidden: false },
@@ -31,6 +33,16 @@ export function Sidebar() {
   const { user, logout } = useAuth();
   const { isOpen, close, isCollapsed, toggleCollapsed } = useSidebar();
 
+  // Cùng queryKey với chuông ở header nên chỉ một request, hai chỗ cùng số.
+  const { data: unread } = useQuery<{ count: number }>({
+    queryKey: ['notif-unread'],
+    queryFn: () => api.get('/notifications/unread-count').then(r => r.data),
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    enabled: !!user,
+  });
+  const unreadCount = unread?.count ?? 0;
+
   const isAdmin   = user?.role === 'GIAM_DOC';
   const isManager = user?.role === 'GIAM_DOC' || user?.role === 'QUAN_LY';
 
@@ -44,12 +56,13 @@ export function Sidebar() {
     showActiveArrow = false,
   ) => {
     const active = pathname === href || (href !== '/tasks' && pathname.startsWith(href));
+    const badge = href === '/notifications' ? unreadCount : 0;
     return (
       <Link
         key={href}
         href={href}
         onClick={close}
-        title={isCollapsed ? label : undefined}
+        title={isCollapsed ? (badge ? `${label} (${badge} chưa đọc)` : label) : undefined}
         className={cn(
           'flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors duration-150',
           centerOnCollapse,
@@ -58,10 +71,23 @@ export function Sidebar() {
             : 'text-[#A1A1AA] hover:bg-[#2C2C2E] hover:text-white',
         )}
       >
-        <Icon size={16} className="flex-shrink-0" />
+        <span className="relative flex-shrink-0">
+          <Icon size={16} />
+          {/* Menu thu gọn: chỉ còn icon nên báo bằng chấm đỏ */}
+          {badge > 0 && (
+            <span className={cn('absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-500 hidden', isCollapsed && 'lg:block')} />
+          )}
+        </span>
         <span className={cn('truncate', hideOnCollapse)}>{label}</span>
+        {badge > 0 && (
+          <span
+            aria-label={`${badge} chưa đọc`}
+            className={cn('ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold flex items-center justify-center', hideOnCollapse)}>
+            {badge > 99 ? '99+' : badge}
+          </span>
+        )}
         {showActiveArrow && active && (
-          <ChevronRight size={14} className={cn('ml-auto opacity-50', hideOnCollapse)} />
+          <ChevronRight size={14} className={cn(badge > 0 ? 'opacity-50' : 'ml-auto opacity-50', hideOnCollapse)} />
         )}
       </Link>
     );
