@@ -54,9 +54,25 @@ export default function UsersPage() {
     return true;
   });
 
+  // Mã tự sinh để điền sẵn — lấy mới mỗi lần mở form, vì có thể vừa thêm người khác.
+  const { data: nextCode, isPending: loadingCode } = useQuery<{ code: string }>({
+    queryKey: ['next-employee-code'],
+    queryFn: () => api.get('/users/next-code').then(r => r.data),
+    enabled: showCreate && me?.role === 'GIAM_DOC',
+    staleTime: 0,
+    refetchOnMount: 'always',
+    // Mã đổi giữa chừng thì form khởi tạo lại (key theo mã) và mất phần đang gõ.
+    refetchOnWindowFocus: false,
+  });
+
   const createUser = useMutation({
     mutationFn: (data: any) => api.post('/users', data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); setShowCreate(false); toast.success('Đã tạo nhân viên'); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] });
+      qc.invalidateQueries({ queryKey: ['next-employee-code'] });
+      setShowCreate(false);
+      toast.success('Đã tạo nhân viên');
+    },
     onError: (e: any) => toast.error(e.response?.data?.message || 'Lỗi tạo nhân viên'),
   });
 
@@ -285,7 +301,16 @@ export default function UsersPage() {
       <Dialog open={showCreate} onOpenChange={(o) => !o && setShowCreate(false)}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Thêm nhân viên</DialogTitle></DialogHeader>
-          <UserForm departments={departments} shifts={shifts} onSubmit={(d: any) => createUser.mutate(d)} onCancel={() => setShowCreate(false)} />
+          {loadingCode ? (
+            <div className="py-10 flex justify-center">
+              <div className="w-5 h-5 border-2 border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
+            </div>
+          ) : (
+            // key theo mã: mã tới thì form khởi tạo lại với mã đó điền sẵn
+            <UserForm key={nextCode?.code ?? 'none'} initialCode={nextCode?.code ?? ''}
+              departments={departments} shifts={shifts}
+              onSubmit={(d: any) => createUser.mutate(d)} onCancel={() => setShowCreate(false)} />
+          )}
         </DialogContent>
       </Dialog>
 
@@ -456,24 +481,42 @@ function ShiftSelect({ value, shifts, onChange }: { value: string; shifts: Shift
   );
 }
 
-function UserForm({ onSubmit, onCancel, departments, shifts }: { onSubmit: any; onCancel: any; departments: Department[]; shifts: Shift[] }) {
-  const [f, setF] = useState({ fullName: '', email: '', password: '', phone: '', role: 'NHAN_VIEN', positionTitle: '', departmentId: '', shiftId: '' });
+/** Ô mã nhân viên, dùng chung cho form thêm và form sửa. */
+function EmployeeCodeField({ value, onChange, hint }: { value: string; onChange: (v: string) => void; hint?: string }) {
+  return (
+    <div>
+      <label className="lbl">Mã nhân viên *</label>
+      <input required maxLength={20} value={value} onChange={e => onChange(e.target.value.toUpperCase())}
+        placeholder="NV001" className="field font-mono" />
+      {hint && <p className="text-[11px] text-gray-400 mt-1">{hint}</p>}
+    </div>
+  );
+}
+
+function UserForm({ onSubmit, onCancel, departments, shifts, initialCode }: {
+  onSubmit: any; onCancel: any; departments: Department[]; shifts: Shift[]; initialCode: string;
+}) {
+  const [f, setF] = useState({ employeeCode: initialCode, fullName: '', email: '', password: '', phone: '', role: 'NHAN_VIEN', positionTitle: '', departmentId: '', shiftId: '' });
   return (
     <form onSubmit={(e) => {
       e.preventDefault();
       if (!f.email.trim() && !f.phone.trim()) { toast.error('Nhập ít nhất email hoặc số điện thoại'); return; }
       onSubmit({
         ...f,
+        employeeCode: f.employeeCode.trim() || undefined,
         email: f.email.trim() || undefined,
         phone: f.phone.trim() || undefined,
         departmentId: f.departmentId ? Number(f.departmentId) : undefined,
         shiftId: f.shiftId ? Number(f.shiftId) : undefined,
       });
     }} className="space-y-3 mt-2">
-      <div>
-        <label className="lbl">Họ tên *</label>
-        <input required value={f.fullName} onChange={e => setF(p => ({ ...p, fullName: e.target.value }))}
-          className="field" />
+      <div className="grid grid-cols-[8rem_1fr] gap-3">
+        <EmployeeCodeField value={f.employeeCode} onChange={v => setF(p => ({ ...p, employeeCode: v }))} />
+        <div>
+          <label className="lbl">Họ tên *</label>
+          <input required value={f.fullName} onChange={e => setF(p => ({ ...p, fullName: e.target.value }))}
+            className="field" />
+        </div>
       </div>
       <LoginContactFields email={f.email} phone={f.phone} onChange={patch => setF(p => ({ ...p, ...patch }))} />
       <div className="grid grid-cols-2 gap-3">
@@ -522,6 +565,7 @@ function UserForm({ onSubmit, onCancel, departments, shifts }: { onSubmit: any; 
 function EditUserForm({ user, onSubmit, onCancel, departments, shifts }: { user: User; onSubmit: any; onCancel: any; departments: Department[]; shifts: Shift[] }) {
   const initManagedIds = (user.managedDepartments ?? []).map(d => d.id);
   const [f, setF] = useState({
+    employeeCode: user.employeeCode,
     fullName: user.fullName,
     email: user.email || '',
     phone: user.phone || '',
@@ -542,6 +586,7 @@ function EditUserForm({ user, onSubmit, onCancel, departments, shifts }: { user:
     if (!f.email.trim() && !f.phone.trim()) { toast.error('Nhập ít nhất email hoặc số điện thoại'); return; }
     onSubmit({
       ...f,
+      employeeCode: f.employeeCode.trim(),
       email: f.email.trim() || null,
       phone: f.phone.trim() || null,
       departmentId: f.departmentId ? Number(f.departmentId) : null,
@@ -552,10 +597,13 @@ function EditUserForm({ user, onSubmit, onCancel, departments, shifts }: { user:
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3 mt-2">
-      <div>
-        <label className="lbl">Họ tên</label>
-        <input value={f.fullName} onChange={e => setF(p => ({ ...p, fullName: e.target.value }))}
-          className="field" />
+      <div className="grid grid-cols-[8rem_1fr] gap-3">
+        <EmployeeCodeField value={f.employeeCode} onChange={v => setF(p => ({ ...p, employeeCode: v }))} />
+        <div>
+          <label className="lbl">Họ tên</label>
+          <input value={f.fullName} onChange={e => setF(p => ({ ...p, fullName: e.target.value }))}
+            className="field" />
+        </div>
       </div>
       <LoginContactFields email={f.email} phone={f.phone} onChange={patch => setF(p => ({ ...p, ...patch }))} />
       <div>
