@@ -43,7 +43,9 @@ export interface Task {
   assignee?: User;
   priority: TaskPriority;
   status: TaskStatus;
-  dueDate?: string;
+  /** "Từ ngày" — ngày bắt đầu, có thể trống. */
+  startDate?: string | null;
+  dueDate?: string | null;
   completedAt?: string;
   /** Đánh giá của người giao việc, chỉ có nghĩa khi status = DONE. */
   reviewStatus?: 'PENDING_REVIEW' | 'ACCEPTED' | 'RETURNED' | null;

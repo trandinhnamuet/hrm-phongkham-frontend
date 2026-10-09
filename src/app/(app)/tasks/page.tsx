@@ -14,15 +14,23 @@ import { AssigneeStack, AssigneePicker } from '@/components/tasks/assignee-picke
 import { ReviewBadge } from '@/components/tasks/review-badge';
 import { MobileBoard } from '@/components/tasks/mobile-board';
 import { TASK_PRIORITY_META } from '@/components/tasks/task-detail-dialog';
+import { TaskTable, TaskViewToggle, ShowCancelledToggle, useTaskView } from '@/components/tasks/task-table';
+
+const TODAY = new Date().toISOString().split('T')[0];
 
 const STATUS_COLS: { key: TaskStatus; label: string; color: string; bg: string; accent: string }[] = [
   { key: 'TODO',        label: 'Cần làm',     color: 'bg-slate-200 text-slate-700',   bg: 'bg-slate-50',     accent: 'border-t-slate-400' },
   { key: 'IN_PROGRESS', label: 'Đang làm',    color: 'bg-blue-100 text-blue-700',     bg: 'bg-blue-50/70',   accent: 'border-t-blue-500' },
   { key: 'DONE',        label: 'Hoàn thành',  color: 'bg-green-100 text-green-700',   bg: 'bg-green-50/70',  accent: 'border-t-green-500' },
-  { key: 'CANCELLED',   label: 'Đã hủy',      color: 'bg-red-100 text-red-700',       bg: 'bg-red-50/60',    accent: 'border-t-red-400' },
   // Thiếu cột này thì việc quá hạn không nằm ở đâu, nhân viên không thấy để xử lý.
   { key: 'QUA_HAN',     label: 'Quá hạn',     color: 'bg-orange-100 text-orange-700', bg: 'bg-orange-50/70', accent: 'border-t-orange-500' },
+  // Chỉ hiện khi bật "Hiện việc đã hủy" — kéo ra cột khác là khôi phục.
+  { key: 'CANCELLED',   label: 'Đã hủy',      color: 'bg-red-100 text-red-700',       bg: 'bg-red-50/60',    accent: 'border-t-red-400' },
 ];
+
+/** Việc quá hạn chỉ được chuyển sang Hoàn thành hoặc Đã hủy; không ai tự kéo vào Quá hạn. */
+const canMoveTo = (from: TaskStatus, to: TaskStatus) =>
+  to !== 'QUA_HAN' && (from !== 'QUA_HAN' || to === 'DONE' || to === 'CANCELLED');
 
 
 
@@ -42,6 +50,8 @@ export default function TasksPage() {
   }, []);
 
   const [filterStatus, setFilterStatus] = useState<string>('');
+  const [showCancelled, setShowCancelled] = useState(false);
+  const [view, setView] = useTaskView();
 
   // Drag-and-drop state
   const dragRef = useRef<{ id: number; fromStatus: TaskStatus } | null>(null);
@@ -51,11 +61,12 @@ export default function TasksPage() {
   const isManagerOrDirector = user?.role === 'GIAM_DOC' || user?.role === 'QUAN_LY';
 
   const { data: tasks = [], isLoading: loadingTasks, isError, refetch } = useQuery<Task[]>({
-    queryKey: ['my-tasks', filterStatus, user?.id],
+    queryKey: ['my-tasks', filterStatus, user?.id, showCancelled],
     queryFn: () => api.get('/tasks', {
       params: {
         ...(filterStatus ? { status: filterStatus } : {}),
         ...(isManagerOrDirector ? { assigneeId: user?.id } : {}),
+        ...(showCancelled ? { includeCancelled: 'true' } : {}),
       },
     }).then(r => r.data),
     enabled: !!user,
@@ -74,8 +85,16 @@ export default function TasksPage() {
   // Mutation đổi trạng thái khi kéo-thả kanban
   const updateTask = useMutation({
     mutationFn: ({ id, data }: { id: number; data: any }) => api.patch(`/tasks/${id}`, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['my-tasks'] }),
+    onSuccess: (_res, { data }) => {
+      qc.invalidateQueries({ queryKey: ['my-tasks'] });
+      if (data?.status) toast.success(`Đã chuyển sang "${STATUS_COLS.find(c => c.key === data.status)?.label}"`);
+    },
+    // Ví dụ nhân viên tự hủy việc người khác giao: backend từ chối, phải báo ra.
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Không thể thay đổi'),
   });
+
+  // Hủy / khôi phục: người giao việc hoặc quản lý (backend kiểm tra lại).
+  const canRestore = (t: Task) => isManagerOrDirector || t.createdBy?.id === user?.id;
 
   const createTask = useMutation({
     mutationFn: (data: any) => api.post('/tasks', data),
@@ -87,26 +106,42 @@ export default function TasksPage() {
     onError: (err: any) => toast.error(err.response?.data?.message || 'Lỗi tạo công việc'),
   });
 
-  const grouped = STATUS_COLS.map(col => ({
+  const columns = STATUS_COLS.filter(c => showCancelled || c.key !== 'CANCELLED');
+  const grouped = columns.map(col => ({
     ...col,
     tasks: tasks.filter(t => t.status === col.key),
   }));
 
+  const toggleCancelled = (v: boolean) => {
+    setShowCancelled(v);
+    if (!v && filterStatus === 'CANCELLED') setFilterStatus('');
+  };
+
   const handleDrop = (targetStatus: TaskStatus) => {
     const drag = dragRef.current;
-    // Không tự kéo vào Quá hạn; việc quá hạn chỉ chuyển được sang Hoàn thành.
-    if (drag && (targetStatus === 'QUA_HAN' || (drag.fromStatus === 'QUA_HAN' && targetStatus !== 'DONE'))) {
-      if (drag.fromStatus === 'QUA_HAN') toast.error('Công việc quá hạn chỉ có thể chuyển sang "Hoàn thành"');
+    if (drag && !canMoveTo(drag.fromStatus, targetStatus)) {
+      if (drag.fromStatus === 'QUA_HAN') toast.error('Công việc quá hạn chỉ có thể chuyển sang "Hoàn thành" hoặc "Đã hủy"');
       setDragOverCol(null); dragRef.current = null; return;
     }
     if (drag && drag.fromStatus !== targetStatus) {
       updateTask.mutate({ id: drag.id, data: { status: targetStatus } });
-      const col = STATUS_COLS.find(c => c.key === targetStatus);
-      toast.success(`Đã chuyển sang "${col?.label}"`);
     }
     setDragOverCol(null);
     dragRef.current = null;
   };
+
+  const errorBox = (
+    <div className="flex flex-col items-center justify-center h-full py-16 gap-3 text-center">
+      <span className="w-12 h-12 rounded-full bg-red-50 text-red-500 flex items-center justify-center">
+        <AlertCircle size={22} />
+      </span>
+      <div>
+        <p className="text-sm font-medium text-gray-900">Không tải được danh sách công việc</p>
+        <p className="text-xs text-gray-500 mt-1">Kiểm tra kết nối mạng rồi thử lại.</p>
+      </div>
+      <button onClick={() => refetch()} className="btn btn-secondary btn-sm"><RefreshCw size={14} /> Tải lại</button>
+    </div>
+  );
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -122,31 +157,35 @@ export default function TasksPage() {
         }
       />
 
-      {/* Filter bar */}
-      <div className="hidden lg:flex px-6 py-3 bg-white border-b border-gray-100 gap-2 overflow-x-auto">
-        {['', ...STATUS_COLS.map(c => c.key)].map((s) => (
-          <button key={s} onClick={() => setFilterStatus(s)}
-            className={`flex-shrink-0 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-              filterStatus === s ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500 hover:bg-gray-100'}`}>
-            {s === '' ? 'Tất cả' : STATUS_COLS.find(c => c.key === s)?.label}
-          </button>
-        ))}
+      {/* Filter bar — chip trạng thái chỉ trên desktop (mobile đã có tab trong bảng) */}
+      <div className="flex items-center px-4 sm:px-6 py-2.5 lg:py-3 bg-white border-b border-gray-100 gap-2">
+        <div className="hidden lg:flex items-center gap-2 overflow-x-auto">
+          {['', ...columns.map(c => c.key)].map((s) => (
+            <button key={s} onClick={() => setFilterStatus(s)}
+              className={`flex-shrink-0 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                filterStatus === s ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500 hover:bg-gray-100'}`}>
+              {s === '' ? 'Tất cả' : STATUS_COLS.find(c => c.key === s)?.label}
+            </button>
+          ))}
+        </div>
+        <div className="ml-auto flex items-center gap-3">
+          <ShowCancelledToggle checked={showCancelled} onChange={toggleCancelled} />
+          <TaskViewToggle value={view} onChange={setView} />
+        </div>
       </div>
 
+      {view === 'list' ? (
+        <div className="flex-1 min-h-0 overflow-y-auto md:p-6">
+          {isError ? errorBox : (
+            <TaskTable tasks={tasks} loading={isLoading} onOpen={setSelectedTask}
+              canRestore={canRestore}
+              onRestore={t => updateTask.mutate({ id: t.id, data: { status: 'TODO' } })} />
+          )}
+        </div>
+      ) : (<>
       {/* Kanban desktop — kéo-thả, chỉ từ lg */}
       <div className="hidden lg:block flex-1 overflow-x-auto p-6">
-        {isError ? (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
-            <span className="w-12 h-12 rounded-full bg-red-50 text-red-500 flex items-center justify-center">
-              <AlertCircle size={22} />
-            </span>
-            <div>
-              <p className="text-sm font-medium text-gray-900">Không tải được danh sách công việc</p>
-              <p className="text-xs text-gray-500 mt-1">Kiểm tra kết nối mạng rồi thử lại.</p>
-            </div>
-            <button onClick={() => refetch()} className="btn btn-secondary btn-sm"><RefreshCw size={14} /> Tải lại</button>
-          </div>
-        ) : isLoading ? (
+        {isError ? errorBox : isLoading ? (
           <div className="flex items-center justify-center h-full">
             <div className="w-6 h-6 border-2 border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
           </div>
@@ -226,24 +265,22 @@ export default function TasksPage() {
       {/* Mobile: mỗi cột trọn màn hình, vuốt ngang, chuyển trạng thái bằng nút */}
       <div className="lg:hidden flex-1 min-h-0">
         <MobileBoard
-          columns={STATUS_COLS}
+          columns={columns}
           tasks={tasks}
           loading={isLoading}
           onOpen={setSelectedTask}
-          canMoveTo={(from, to) => to !== 'QUA_HAN' && (from !== 'QUA_HAN' || to === 'DONE')}
-          onMove={(task, to) => {
-            updateTask.mutate({ id: task.id, data: { status: to } });
-            toast.success(`Đã chuyển sang "${STATUS_COLS.find(c => c.key === to)?.label}"`);
-          }}
+          canMoveTo={canMoveTo}
+          onMove={(task, to) => updateTask.mutate({ id: task.id, data: { status: to } })}
         />
       </div>
+      </>)}
 
       {/* Task Detail Dialog (dùng chung với màn /tasks/manage) */}
       <TaskDetailDialog
         taskId={selectedTask?.id ?? null}
         onClose={() => setSelectedTask(null)}
         users={users}
-        canDelete={user?.role !== 'NHAN_VIEN'}
+        canDelete={user?.role === 'GIAM_DOC'}
         currentUserId={user?.id}
         isManager={user?.role === 'GIAM_DOC' || user?.role === 'QUAN_LY'}
         onChanged={() => qc.invalidateQueries({ queryKey: ['my-tasks'] })}
@@ -263,15 +300,18 @@ export default function TasksPage() {
 
 function CreateTaskDialog({ open, onClose, users, userRole, userId, onSubmit }: any) {
   const [form, setForm] = useState({
-    title: '', description: '', assigneeIds: [] as string[], priority: 'NORMAL', dueDate: '',
+    title: '', description: '', assigneeIds: [] as string[], priority: 'NORMAL', startDate: '', dueDate: '',
   });
+  const badDates = !!(form.startDate && form.dueDate && form.startDate > form.dueDate);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (badDates) return;
     onSubmit({
       ...form,
       // Không chọn ai thì để backend mặc định giao cho người tạo.
       assigneeIds: form.assigneeIds.length > 0 ? form.assigneeIds : undefined,
+      startDate: form.startDate || undefined,
       dueDate: form.dueDate || undefined,
     });
   };
@@ -291,23 +331,31 @@ function CreateTaskDialog({ open, onClose, users, userRole, userId, onSubmit }: 
             <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
               rows={3} className="field field-area" />
           </div>
+          <div>
+            <label className="lbl">Độ ưu tiên</label>
+            <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
+              className="field">
+              <option value="LOW">Thấp</option>
+              <option value="NORMAL">Bình thường</option>
+              <option value="HIGH">Cao</option>
+              <option value="URGENT">Khẩn</option>
+            </select>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="lbl">Độ ưu tiên</label>
-              <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
-                className="field">
-                <option value="LOW">Thấp</option>
-                <option value="NORMAL">Bình thường</option>
-                <option value="HIGH">Cao</option>
-                <option value="URGENT">Khẩn</option>
-              </select>
+              <label className="lbl">Từ ngày</label>
+              <input type="date" value={form.startDate} max={form.dueDate || undefined}
+                onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))}
+                className="field" />
             </div>
             <div>
-              <label className="lbl">Hạn</label>
-              <input type="date" value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
+              <label className="lbl">Hạn hoàn thành</label>
+              <input type="date" min={form.startDate > TODAY ? form.startDate : TODAY} value={form.dueDate}
+                onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
                 className="field" />
             </div>
           </div>
+          {badDates && <p className="-mt-2 text-[11px] text-red-500">&quot;Từ ngày&quot; phải trước hoặc bằng hạn hoàn thành</p>}
           {userRole !== 'NHAN_VIEN' && (
             <div>
               <label className="lbl">
@@ -322,7 +370,7 @@ function CreateTaskDialog({ open, onClose, users, userRole, userId, onSubmit }: 
               className="btn btn-secondary">
               Hủy
             </button>
-            <button type="submit"
+            <button type="submit" disabled={badDates}
               className="btn btn-primary">
               Tạo
             </button>

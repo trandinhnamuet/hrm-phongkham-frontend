@@ -6,7 +6,8 @@ import api from '@/lib/api';
 import { Task, TaskStatus, TaskPriority, User, TaskHistory } from '@/types';
 import {
   History, Calendar, User as UserIcon, Flag, Tag, Save,
-  ClipboardCheck, CircleCheck, Undo2, AlertCircle,} from 'lucide-react';
+  ClipboardCheck, CircleCheck, Undo2, AlertCircle, Ban, RotateCcw,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { AssigneePicker } from '@/components/tasks/assignee-picker';
@@ -32,10 +33,10 @@ export const TASK_PRIORITY_META: Record<TaskPriority, { label: string; color: st
 const FIELD_LABELS: Record<string, string> = {
   status: 'Trạng thái', title: 'Tiêu đề', description: 'Mô tả',
   assigneeIds: 'Người được giao', assigneeId: 'Người được giao',
-  priority: 'Độ ưu tiên', dueDate: 'Hạn',
+  priority: 'Độ ưu tiên', dueDate: 'Hạn', startDate: 'Từ ngày',
 };
 
-function toDateInput(v?: string) { return v ? v.split('T')[0] : ''; }
+function toDateInput(v?: string | null) { return v ? v.split('T')[0] : ''; }
 
 /** So sánh 2 danh sách id, bỏ qua thứ tự. */
 function sameIds(a: string[], b: string[]) {
@@ -65,7 +66,7 @@ function fmtHistVal(field: string, val: string, users: User[]) {
       .map(id => users.find(u => u.id === id)?.fullName || id.slice(0, 8) + '…')
       .join(', ') || '(trống)';
   }
-  if (field === 'dueDate') { try { return new Date(val).toLocaleDateString('vi-VN'); } catch { return val; } }
+  if (field === 'dueDate' || field === 'startDate') { try { return new Date(val).toLocaleDateString('vi-VN'); } catch { return val; } }
   return val.length > 60 ? val.slice(0, 60) + '…' : val;
 }
 
@@ -75,6 +76,7 @@ interface EditForm {
   status: string;
   priority: string;
   assigneeIds: string[];
+  startDate: string;
   dueDate: string;
 }
 
@@ -83,7 +85,10 @@ interface Props {
   onClose: () => void;
   /** Danh sách nhân viên để hiển thị dropdown "Giao cho". Nếu rỗng → người được giao chỉ hiển thị, không sửa. */
   users?: User[];
-  /** Cho phép xóa công việc (Giám đốc / Quản lý). */
+  /**
+   * Cho phép xóa hẳn công việc — chỉ Giám đốc. Những người khác chỉ hủy được
+   * (chuyển sang Đã hủy, khôi phục lại được).
+   */
   canDelete?: boolean;
   /** Id người đang đăng nhập — để biết có phải người giao việc không. */
   currentUserId?: string;
@@ -101,7 +106,8 @@ export function TaskDetailDialog({
   const [newComment, setNewComment] = useState('');
   const [reviewNote, setReviewNote] = useState('');
   const [showHistory, setShowHistory] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  // Hỏi lại trước khi hủy hoặc xóa: hai thao tác này đẩy việc khỏi bảng.
+  const [confirmAction, setConfirmAction] = useState<'cancel' | 'delete' | null>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
   // Người được giao được lưu riêng, tự động — xem flushAssignees bên dưới.
@@ -135,6 +141,7 @@ export function TaskDetailDialog({
         status: taskDetail.status,
         priority: taskDetail.priority,
         assigneeIds: (taskDetail.assignees ?? []).map(a => a.id),
+        startDate: toDateInput(taskDetail.startDate),
         dueDate: toDateInput(taskDetail.dueDate),
       });
     }
@@ -144,7 +151,7 @@ export function TaskDetailDialog({
   // Reset trạng thái UI tạm thời khi đổi sang task khác
   useEffect(() => {
     setShowHistory(false);
-    setShowDeleteConfirm(false);
+    setConfirmAction(null);
     setNewComment('');
     setReviewNote('');
     setAssigneeSaving(false);
@@ -182,7 +189,7 @@ export function TaskDetailDialog({
     mutationFn: () => api.delete(`/tasks/${taskId}`),
     onSuccess: () => {
       onChanged?.();
-      setShowDeleteConfirm(false);
+      setConfirmAction(null);
       onClose();
       toast.success('Đã xóa công việc');
     },
@@ -292,28 +299,58 @@ export function TaskDetailDialog({
   const canReview = !!(isManager
     || (currentUserId && taskDetail?.createdBy?.id === currentUserId));
 
-  const allowedStatuses: TaskStatus[] = taskDetail?.status === 'QUA_HAN'
-    ? ['QUA_HAN', 'DONE']
-    : ['TODO', 'IN_PROGRESS', 'DONE', 'CANCELLED'];
+  // Hủy / khôi phục: người giao việc hoặc quản lý. Backend kiểm tra lại.
+  const canCancel = !!(isManager
+    || (currentUserId && taskDetail?.createdBy?.id === currentUserId));
+
+  const cancelOpt: TaskStatus[] = canCancel ? ['CANCELLED'] : [];
+  const allowedStatuses: TaskStatus[] = taskDetail?.status === 'CANCELLED'
+    ? (canCancel ? ['CANCELLED', 'TODO', 'IN_PROGRESS', 'DONE'] : ['CANCELLED'])
+    : taskDetail?.status === 'QUA_HAN'
+      ? ['QUA_HAN', 'DONE', ...cancelOpt]
+      : ['TODO', 'IN_PROGRESS', 'DONE', ...cancelOpt];
+
+  /**
+   * Đổi trạng thái ngay (nút Hủy / Khôi phục), không qua tự lưu. Cập nhật luôn
+   * cache để form không bị coi là "chưa lưu" rồi tự lưu thêm lần nữa.
+   */
+  const changeStatusNow = (status: TaskStatus, okMsg: string) => {
+    if (!taskDetail) return;
+    if (autoTimer.current) { clearTimeout(autoTimer.current); autoTimer.current = null; }
+    const prev = taskDetail.status;
+    setEditForm(f => (f ? { ...f, status } : f));
+    qc.setQueryData(['task', taskId], (old: any) => (old ? { ...old, status } : old));
+    updateTask.mutateAsync({ status })
+      .then(() => { setConfirmAction(null); toast.success(okMsg); })
+      .catch(() => {
+        setEditForm(f => (f ? { ...f, status: prev } : f));
+        qc.invalidateQueries({ queryKey: ['task', taskId] });
+      });
+  };
 
   const dirty = !!(taskDetail && editForm && (
     editForm.title !== taskDetail.title ||
     editForm.description !== (taskDetail.description || '') ||
     editForm.status !== taskDetail.status ||
     editForm.priority !== taskDetail.priority ||
+    editForm.startDate !== toDateInput(taskDetail.startDate) ||
     editForm.dueDate !== toDateInput(taskDetail.dueDate)
   ));
 
   const titleEmpty = !editForm?.title.trim();
+  // Từ ngày sau hạn thì backend từ chối; báo ngay và không tự lưu.
+  const badDates = !!(editForm?.startDate && editForm?.dueDate && editForm.startDate > editForm.dueDate);
 
   const buildChanges = (): Record<string, any> | null => {
-    if (!editForm || !taskDetail || titleEmpty) return null;
+    if (!editForm || !taskDetail || titleEmpty || badDates) return null;
     const data: Record<string, any> = {};
     if (editForm.title !== taskDetail.title) data.title = editForm.title.trim();
     if (editForm.description !== (taskDetail.description || '')) data.description = editForm.description;
     if (editForm.status !== taskDetail.status) data.status = editForm.status;
     if (editForm.priority !== taskDetail.priority) data.priority = editForm.priority;
-    if (editForm.dueDate !== toDateInput(taskDetail.dueDate)) data.dueDate = editForm.dueDate;
+    // Ô ngày để trống nghĩa là xoá ngày đó.
+    if (editForm.startDate !== toDateInput(taskDetail.startDate)) data.startDate = editForm.startDate || null;
+    if (editForm.dueDate !== toDateInput(taskDetail.dueDate)) data.dueDate = editForm.dueDate || null;
     return Object.keys(data).length ? data : null;
   };
 
@@ -328,7 +365,7 @@ export function TaskDetailDialog({
   /* Tự lưu sau khi ngừng chỉnh 900ms. Tiêu đề trống thì không lưu (backend sẽ
      từ chối), chờ người dùng gõ lại. */
   useEffect(() => {
-    if (!dirty || titleEmpty || reviewTask.isPending) return;
+    if (!dirty || titleEmpty || badDates || reviewTask.isPending) return;
     if (autoTimer.current) clearTimeout(autoTimer.current);
     autoTimer.current = setTimeout(() => {
       autoTimer.current = null;
@@ -337,7 +374,7 @@ export function TaskDetailDialog({
     }, 900);
     return () => { if (autoTimer.current) clearTimeout(autoTimer.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editForm?.title, editForm?.description, editForm?.status, editForm?.priority, editForm?.dueDate]);
+  }, [editForm?.title, editForm?.description, editForm?.status, editForm?.priority, editForm?.startDate, editForm?.dueDate]);
 
   // Đóng hộp thoại khi còn thay đổi treo thì lưu luôn, không để mất.
   const flushFields = () => {
@@ -348,7 +385,7 @@ export function TaskDetailDialog({
   };
 
   return (
-    <Dialog open={!!taskId} onOpenChange={o => { if (!o) { flushFields(); onClose(); setShowDeleteConfirm(false); } }}>
+    <Dialog open={!!taskId} onOpenChange={o => { if (!o) { flushFields(); onClose(); setConfirmAction(null); } }}>
       <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden gap-0">
         {/* Thiếu hai nhánh dưới thì lúc đang tải, hoặc lúc công việc đã bị xoá,
             hộp thoại render rỗng: người dùng chỉ thấy một lớp mờ phủ màn hình,
@@ -400,6 +437,20 @@ export function TaskDetailDialog({
                 className="w-full -ml-2 px-2 py-1 text-lg font-semibold text-gray-900 leading-snug resize-none overflow-hidden rounded-md border border-transparent outline-none transition-colors hover:border-gray-200 focus:border-indigo-400 focus:bg-white"
               />
               {titleEmpty && <p className="text-[11px] text-red-500 mt-0.5 ml-0.5">Tiêu đề không được để trống</p>}
+              {taskDetail.status === 'CANCELLED' && (
+                <div className="mt-3 flex items-center justify-between gap-3 flex-wrap rounded-lg bg-red-50 border border-red-100 px-3 py-2">
+                  <p className="flex items-center gap-1.5 text-xs text-red-700">
+                    <Ban size={13} /> Công việc này đã bị hủy và đang ẩn khỏi bảng công việc.
+                  </p>
+                  {canCancel && (
+                    <button type="button" onClick={() => changeStatusNow('TODO', 'Đã khôi phục về "Cần làm"')}
+                      disabled={updateTask.isPending}
+                      className="btn btn-sm btn-secondary text-indigo-600 border-indigo-200 hover:bg-indigo-50">
+                      <RotateCcw size={12} /> Khôi phục
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Body */}
@@ -458,12 +509,25 @@ export function TaskDetailDialog({
                   )}
                 </div>
 
+                {/* Từ ngày */}
+                <div>
+                  <p className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1.5">
+                    <Calendar size={10} /> Từ ngày
+                  </p>
+                  <input type="date" value={editForm.startDate} max={editForm.dueDate || undefined}
+                    onChange={e => setEditForm(f => f ? { ...f, startDate: e.target.value } : f)}
+                    className={`w-full h-8 px-2 text-sm border rounded-md bg-white outline-none focus:border-indigo-400 ${
+                      badDates ? 'border-red-300' : 'border-gray-200'}`}
+                  />
+                  {badDates && <p className="text-[11px] text-red-500 mt-1">Phải trước hoặc bằng hạn hoàn thành</p>}
+                </div>
+
                 {/* Hạn */}
                 <div>
                   <p className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1.5">
                     <Calendar size={10} /> Hạn hoàn thành
                   </p>
-                  <input type="date" min={TODAY} value={editForm.dueDate}
+                  <input type="date" min={editForm.startDate > TODAY ? editForm.startDate : TODAY} value={editForm.dueDate}
                     onChange={e => setEditForm(f => f ? { ...f, dueDate: e.target.value } : f)}
                     className={`w-full h-8 px-2 text-sm border rounded-md bg-white outline-none focus:border-indigo-400 ${
                       taskDetail.status === 'QUA_HAN' ? 'border-orange-300 text-orange-600' : 'border-gray-200'
@@ -634,32 +698,48 @@ export function TaskDetailDialog({
                 <span className="hidden sm:inline text-[11px] text-gray-400">
                   {updateTask.isPending ? 'Đang lưu…' : fieldsSavedAt && !dirty ? 'Đã lưu' : dirty ? 'Chưa lưu' : 'Tự lưu khi ngừng gõ'}
                 </span>
-                <button onClick={handleSave} disabled={!dirty || updateTask.isPending || titleEmpty}
+                <button onClick={handleSave} disabled={!dirty || updateTask.isPending || titleEmpty || badDates}
                   title={dirty ? 'Lưu ngay' : 'Mọi thay đổi đã được lưu'}
                   className="btn btn-sm btn-primary">
                   <Save size={12} />
                   {updateTask.isPending ? 'Đang lưu...' : 'Lưu'}
                 </button>
 
-                {canDelete && (
-                  showDeleteConfirm ? (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-gray-500">Xác nhận xóa?</span>
-                      <button onClick={() => deleteTask.mutate()} disabled={deleteTask.isPending}
-                        className="h-7 px-3 text-xs text-white bg-red-500 rounded-md hover:bg-red-600 disabled:opacity-50">
-                        {deleteTask.isPending ? '...' : 'Xóa'}
-                      </button>
-                      <button onClick={() => setShowDeleteConfirm(false)}
-                        className="h-7 px-3 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">
-                        Hủy
-                      </button>
-                    </div>
-                  ) : (
-                    <button onClick={() => setShowDeleteConfirm(true)}
-                      className="h-7 px-3 text-xs text-red-600 border border-red-200 rounded-md hover:bg-red-50">
-                      Xóa công việc
+                {confirmAction ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-gray-500">
+                      {confirmAction === 'delete' ? 'Xóa vĩnh viễn?' : 'Hủy công việc này?'}
+                    </span>
+                    <button
+                      onClick={() => confirmAction === 'delete'
+                        ? deleteTask.mutate()
+                        : changeStatusNow('CANCELLED', 'Đã hủy công việc')}
+                      disabled={deleteTask.isPending || updateTask.isPending}
+                      className="h-7 px-3 text-xs text-white bg-red-500 rounded-md hover:bg-red-600 disabled:opacity-50">
+                      {deleteTask.isPending ? '...' : confirmAction === 'delete' ? 'Xóa' : 'Hủy việc'}
                     </button>
-                  )
+                    <button onClick={() => setConfirmAction(null)}
+                      className="h-7 px-3 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">
+                      Thôi
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {canCancel && taskDetail.status !== 'CANCELLED' && (
+                      <button onClick={() => setConfirmAction('cancel')}
+                        title="Chuyển sang Đã hủy — khôi phục lại được"
+                        className="h-7 px-3 text-xs text-red-600 border border-red-200 rounded-md hover:bg-red-50">
+                        Hủy công việc
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button onClick={() => setConfirmAction('delete')}
+                        title="Xóa hẳn, không khôi phục được (chỉ Giám đốc)"
+                        className="h-7 px-3 text-xs text-gray-500 border border-gray-200 rounded-md hover:text-red-600 hover:bg-red-50">
+                        Xóa
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>
