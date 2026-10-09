@@ -44,13 +44,17 @@ function AssigneeChips({
   }
   return (
     <div className="flex flex-wrap gap-1.5">
-      {people.map(u => (
-        <span key={u.id}
-          className="inline-flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 bg-indigo-50 border border-indigo-100 rounded-full max-w-full">
-          <span className="w-4 h-4 rounded-full bg-indigo-200 flex items-center justify-center flex-shrink-0">
-            <span className="text-[9px] text-indigo-700 font-semibold">{u.fullName?.charAt(0)}</span>
+      {people.map(u => {
+        const resigned = u.status === 'RESIGNED';
+        return (
+        <span key={u.id} title={resigned ? 'Nhân viên đã nghỉ việc' : undefined}
+          className={`inline-flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 border rounded-full max-w-full ${
+            resigned ? 'bg-gray-50 border-gray-200' : 'bg-indigo-50 border-indigo-100'}`}>
+          <span className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${resigned ? 'bg-gray-200' : 'bg-indigo-200'}`}>
+            <span className={`text-[9px] font-semibold ${resigned ? 'text-gray-500' : 'text-indigo-700'}`}>{u.fullName?.charAt(0)}</span>
           </span>
-          <span className="text-xs text-indigo-800 truncate">{u.fullName}</span>
+          <span className={`text-xs truncate ${resigned ? 'text-gray-500 line-through' : 'text-indigo-800'}`}>{u.fullName}</span>
+          {resigned && <span className="text-[10px] text-gray-400 flex-shrink-0">đã nghỉ</span>}
           {onRemove && (
             <button type="button" onClick={() => onRemove(u.id)} title={`Bỏ ${u.fullName}`}
               className="flex-shrink-0 text-indigo-400 hover:text-red-500 transition-colors">
@@ -58,7 +62,8 @@ function AssigneeChips({
             </button>
           )}
         </span>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -99,7 +104,10 @@ export function AssigneePicker({
 
   const candidates = useMemo(() => {
     const needle = q.trim().toLowerCase();
+    // Người đã nghỉ việc không được giao thêm việc; họ vẫn hiện trong chips nếu
+    // đã có sẵn trên việc cũ.
     return users
+      .filter(u => u.status !== 'RESIGNED')
       .filter(u => !value.includes(u.id))
       .filter(u => !needle
         || (u.fullName || '').toLowerCase().includes(needle)
@@ -183,7 +191,7 @@ export function AssigneePicker({
           <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-md shadow-lg max-h-52 overflow-y-auto">
             {candidates.length === 0 ? (
               <p className="px-2.5 py-2 text-xs text-gray-400">
-                {users.length === value.length ? 'Đã thêm tất cả nhân viên' : 'Không tìm thấy nhân viên'}
+                {q.trim() ? 'Không tìm thấy nhân viên' : 'Đã thêm tất cả nhân viên'}
               </p>
             ) : (
               candidates.map((u, i) => (
